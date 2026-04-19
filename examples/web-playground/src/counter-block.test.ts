@@ -16,9 +16,18 @@ describe("@jue/web-playground counter-block", () => {
 
     const button = root.querySelector("button");
     const value = root.querySelector(".value");
+    const card = root.querySelector(".card");
+    const title = root.querySelector("span");
+    const summary = root.querySelectorAll("span")[1];
+    const label = root.querySelector(".label");
 
     expect(button).not.toBeNull();
+    expect(card).not.toBeNull();
+    expect(title?.textContent).toBe("jue counter block");
+    expect(summary?.textContent).toBe("This demo is mounted from a runtime-owned static node table.");
+    expect(label?.textContent).toBe("Count:");
     expect(value?.textContent).toBe("0");
+    expect(button?.textContent).toBe("Increment");
 
     button?.click();
     expect(value?.textContent).toBe("1");

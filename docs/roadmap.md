@@ -67,10 +67,12 @@
 
 目标：
 
-- 让 TSX 输入直接产出 slot graph 和 `Blueprint`
+- 让作者输入先产出 `BlockIR`，再由 lowering 生成 `Blueprint`
 
 范围：
 
+- `BlockIR`
+- lowering
 - TSX 解析
 - 静态结构 hoist
 - binding 降级
@@ -79,7 +81,7 @@
 
 退出条件：
 
-- counter 示例编译后，运行时只消费索引表，不做依赖推理
+- counter 示例经由 `BlockIR -> Blueprint` 路径编译后，运行时只消费索引表，不做依赖推理
 
 ## Milestone E：Region 与动态结构加固
 

@@ -71,11 +71,13 @@
 
 职责：
 
+- 产出声明式 `BlockIR`
+- 把 `BlockIR` lower 到 `Blueprint`
 - 解析 TSX / JSX
 - 静态结构提取
 - 生成 slot、binding、region
 - 生成 `signalToBindings` 之类的索引表
-- 产出 `Blueprint`
+- 最终产出 `Blueprint`
 
 禁止包含：
 
@@ -156,16 +158,31 @@
 
 一个 block 有两种形态：
 
+- `BlockIR`：编译期 / 构建期语义层
 - `Blueprint`：只读的编译产物
 - `BlockInstance`：挂载后的运行时实例
 
+`BlockIR` 负责描述：
+
+- 节点结构
+- binding 语义
+- 依赖关系
+- 未来的 region / channel / resource 语义边界
+
 `Blueprint` 负责描述：
 
-- 静态结构
+- runtime 热路径需要的扁平布局
 - binding opcode
 - binding 到 node 的映射
 - signal 到 binding 的依赖表
+- 参数区
 - region 结构
+
+也就是说：
+
+- 语义层在 `BlockIR`
+- 执行层在 `Blueprint`
+- 两者之间由 lowering 连接
 
 `BlockInstance` 负责保存：
 

@@ -19,6 +19,75 @@
 
 如果这部分不在编译期完成，运行时就会被迫回到动态推理模型。
 
+## 当前阶段共识
+
+当前阶段不再把“作者输入直接生成最终 `Blueprint`”作为第一落点。
+
+先固定三层：
+
+1. 声明式 `BlockIR`
+2. lowering
+3. 最终 `Blueprint`
+
+也就是说：
+
+- 作者输入、fixture、builder、未来 TSX 编译器，先产出 `BlockIR`
+- lowering 负责把 `BlockIR` 压平成运行时需要的 `Blueprint`
+- `runtime-core` 继续只消费 `Blueprint`
+
+这样做的目的很直接：
+
+- 让编译器和 hand-written fixture 共享同一份语义层
+- 让优化 pass 在 typed array 生成之前完成
+- 避免长期直接手写 `Uint32Array` / `Uint8Array`
+
+## 分层职责
+
+### `BlockIR`
+
+`BlockIR` 是编译期和构建期的语义层。
+
+它负责表达：
+
+- 节点结构
+- 父子关系
+- 静态文本
+- binding 语义
+- signal 依赖边
+- 未来的 region / channel / resource 边界
+
+`BlockIR` 追求的是：
+
+- 可读
+- 可分析
+- 可重写
+
+它不是运行时热路径格式。
+
+### lowering
+
+lowering 是把 `BlockIR` 转成 `Blueprint` 的独立阶段。
+
+它负责：
+
+- node slot 分配
+- binding slot 分配
+- 参数区压平
+- `signalToBindings` 反向依赖表生成
+- typed array 布局生成
+
+lowering 的目标不是保留语义可读性，而是产出对运行时友好的布局。
+
+### `Blueprint`
+
+`Blueprint` 继续作为 runtime 的只读输入。
+
+也就是说：
+
+- 编译器不直接面向 runtime patch 逻辑写数组
+- runtime 不反向理解 `BlockIR`
+- 三层边界必须清晰，不混用
+
 ## 输入表面
 
 第一阶段继续用 TSX / JSX。
@@ -35,11 +104,18 @@
 
 ## 输出契约
 
-编译器输出的是 `Blueprint`。
+编译器的最终输出仍然是 `Blueprint`。
+
+但编译器主流程不再直接手写 `Blueprint` 字段。
+
+推荐主流程：
+
+`author input -> BlockIR -> lowering -> Blueprint`
 
 `Blueprint` 至少要包含：
 
 - 静态 fragment
+- 节点表
 - binding opcode 数组
 - binding 到 node 的映射
 - binding 参数表
@@ -88,6 +164,12 @@
 
 这两个目标必须一起成立。
 
+在当前阶段，builder 也遵守同样的规则：
+
+- builder 不直接拼 typed arrays
+- builder 先构造 `BlockIR`
+- 再由 lowering 生成 `Blueprint`
+
 ## 不支持模式策略
 
 如果某种写法会迫使系统退化到以下任一模式，就不要默认支持：
@@ -112,14 +194,25 @@ IR 契约应该由 `runtime-core` 定义，编译器严格消费。
 - patch 参数格式
 - `Blueprint` 字段顺序
 
-这样做有两个直接好处：
+当前契约分成两层：
+
+1. `BlockIR` 契约
+2. `Blueprint` 契约
+
+其中：
+
+- `BlockIR` 用于编译器、builder、fixture、优化 pass
+- `Blueprint` 用于 runtime
+
+这样做有三个直接好处：
 
 1. 编译输出更稳定，适合做 snapshot test
 2. 运行时数据布局更容易优化到 V8 友好的形态
+3. 可以在 lowering 前插入优化 pass，而不污染 runtime 结构
 
 ## 对 V8 友好的输出要求
 
-编译器输出不能只考虑语义，还要考虑运行时布局。
+lowering 输出不能只考虑语义，还要考虑运行时布局。
 
 建议优先产出这类结构：
 
@@ -130,10 +223,18 @@ IR 契约应该由 `runtime-core` 定义，编译器严格消费。
 
 尽量不要让运行时再把编译结果转换成一层新的对象图。
 
+也就是说：
+
+- 语义层复杂度留在 `BlockIR`
+- 运行时复杂度留在 `Blueprint` 之外
+- `Blueprint` 本身继续保持扁平和紧凑
+
 ## 第一阶段编译器目标
 
 第一阶段只需要证明这几件事：
 
+- `BlockIR` 能稳定表达静态树与基础 binding
+- lowering 能稳定产出可执行 `Blueprint`
 - 静态节点 hoist
 - 文本 binding 降级
 - class / prop / style binding 降级
@@ -141,6 +242,16 @@ IR 契约应该由 `runtime-core` 定义，编译器严格消费。
 - 一个 conditional region
 - 一个 keyed list region
 - 一张可执行的 `signalToBindings` 表
+
+第一阶段不要求一开始就完成完整 TSX 编译。
+
+允许先通过：
+
+- builder
+- fixture DSL
+- 极小输入面
+
+来验证 `BlockIR -> lowering -> Blueprint` 这条主链。
 
 只要这些东西能稳定输出，运行时主路径就已经成立了一半。
 
@@ -156,3 +267,18 @@ IR 契约应该由 `runtime-core` 定义，编译器严格消费。
 
 - 编译器先把边界和 slot 固定下来
 - 运行时再在这些边界内执行窗口计算、消息消费和异步确认
+
+## 当前推荐实现顺序
+
+当前推荐顺序是：
+
+1. 先实现声明式 `BlockIR`
+2. 再实现 `lowerBlockIRToBlueprint()`
+3. 让 builder / example fixture 先迁移到 `BlockIR`
+4. 最后再让 `packages/compiler` 从 TSX 或其他作者输入产出 `BlockIR`
+
+原因：
+
+- 先把 lowering 契约固定下来
+- 先验证 IR 是否足够承载当前 runtime 能力
+- 避免编译器第一版直接和 typed array 细节耦合

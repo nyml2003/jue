@@ -79,7 +79,7 @@ export function mountCounterBlock(root: Node): Result<MountedCounterBlock, Count
 
 function createCounterBlueprint(clickHandler: () => void) {
   return createBlueprint({
-    nodeCount: 11,
+    nodeCount: 12,
     nodeKind: new Uint8Array([
       NODE_KIND_ELEMENT, // 0 card
       NODE_KIND_ELEMENT, // 1 title
@@ -91,7 +91,8 @@ function createCounterBlueprint(clickHandler: () => void) {
       NODE_KIND_TEXT,    // 7 label text
       NODE_KIND_ELEMENT, // 8 value
       NODE_KIND_TEXT,    // 9 value text
-      NODE_KIND_ELEMENT  // 10 button
+      NODE_KIND_ELEMENT, // 10 button
+      NODE_KIND_TEXT     // 11 button text
     ]),
     nodePrimitiveRefIndex: new Uint32Array([
       REF_VIEW,
@@ -104,7 +105,8 @@ function createCounterBlueprint(clickHandler: () => void) {
       INVALID_INDEX,
       REF_VIEW,
       INVALID_INDEX,
-      REF_BUTTON
+      REF_BUTTON,
+      INVALID_INDEX
     ]),
     nodeTextRefIndex: new Uint32Array([
       INVALID_INDEX,
@@ -117,7 +119,8 @@ function createCounterBlueprint(clickHandler: () => void) {
       REF_COUNT_LABEL_TEXT,
       INVALID_INDEX,
       REF_INCREMENT_TEXT,
-      INVALID_INDEX
+      INVALID_INDEX,
+      REF_INCREMENT_TEXT
     ]),
     nodeParentIndex: new Uint32Array([
       INVALID_INDEX,
@@ -130,7 +133,8 @@ function createCounterBlueprint(clickHandler: () => void) {
       6,
       5,
       8,
-      5
+      5,
+      10
     ]),
     bindingOpcode: new Uint8Array([
       BindingOpcode.PROP,
