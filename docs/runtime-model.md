@@ -138,6 +138,7 @@ region 至少分三类：
 - `NESTED_BLOCK` 已有真实 child tree 挂载。`regions.nested(slot).attach()` 会按 `regionNestedBlueprintSlot` 挂载子 Blueprint；`replace(blockSlot, blueprintSlot)` 会挂新 child tree、定位到 region anchor 内，再提交 runtime state；`detach()` 会释放 child tree。
 - `KEYED_LIST` 已有最小真实 reconcile。`regions.keyedList(slot).attach()` 挂载 item child tree；`reconcile()` 根据 key 做 insert / remove / move；`clear()` 释放所有 item tree。
 - `VIRTUAL_LIST` 已有最小 window controller。它维护 `itemCount / windowStart / windowEnd`，web 层使用固定可见 cell pool，窗口变化时重写 cell signals，而不是走普通 keyed diff。
+- `examples/web-playground/src/tab-panel.ts` 已把第二个 tab 接到 `VIRTUAL_LIST`，通过 scroll viewport + spacer 展示 1000 item 的最小长列表例子。
 
 当前 web controller 采用“先验证/挂载新内容，再提交稳定状态”的方向，避免 DOM 成功但 region state 失败，或 region state 成功但 DOM 半挂载。
 
@@ -161,10 +162,11 @@ region 至少分三类：
 - `attach({ itemCount, windowStart, cells })` 挂载首个窗口
 - `updateWindow({ itemCount, windowStart, cells })` 复用已有 cell tree，并把新窗口数据写入 cell signals
 - `clear()` 释放 cell pool
+- example 侧可通过 scroll handler 把 `scrollTop` 映射成新的 `windowStart`
+- example 侧使用 top/bottom spacer 维持真实滚动高度，而不是把 1000 个 item 全挂出来
 
 还没有实现：
 
-- 滚动事件接入
 - overscan
 - 动态 cell pool 扩容
 - item 高度测量

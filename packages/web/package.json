@@ -15,7 +15,7 @@
     "@jue/shared": "workspace:*"
   },
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --format=esm --platform=browser --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/index.js --sourcemap && esbuild src/index.ts --bundle --format=esm --platform=browser --target=esnext --external:@jue/runtime-core --external:@jue/shared --minify --outfile=dist/index.min.js && tsc -p tsconfig.json --emitDeclarationOnly --outDir dist",
+    "build": "esbuild src/index.ts --bundle --format=esm --platform=browser --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/index.js --sourcemap && esbuild src/index.ts --bundle --format=esm --platform=browser --target=esnext --external:@jue/runtime-core --external:@jue/shared --minify --outfile=dist/index.min.js && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   }
 }

@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "paths": {},
+    "tsBuildInfoFile": "../../node_modules/.cache/jue/web/tsconfig.build.tsbuildinfo"
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "exclude": [
+    "test/**/*.ts"
+  ]
+}

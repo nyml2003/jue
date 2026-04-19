@@ -177,12 +177,14 @@
 - web controller 已提供 `regions.conditional()`、`regions.nested()`、`regions.keyedList()`
 - `VIRTUAL_LIST` 已有最小 window state 和 web controller
 - `VIRTUAL_LIST` 最小 web controller 使用固定可见 cell pool，窗口更新时重写 cell signals，不走普通 keyed diff
+- `examples/web-playground/src/tab-panel.ts` 已把第二个 tab 接到 `VIRTUAL_LIST`
+- `tab-panel` 现在有真实 scroll viewport、top/bottom spacer 和 1000 item / 12 visible cells 的 example
 
 当前限制：
 
 - `KEYED_LIST` 现在是正确性优先的最小 reconcile，不是最终性能最优 diff
 - child block / list item 的局部状态隔离已建立，但还没有 channel/resource 跨实例通信
-- `VIRTUAL_LIST` 当前仍是最小版本：没有滚动事件接入、overscan、动态池扩容、item 高度测量和真实滚动 benchmark
+- `VIRTUAL_LIST` 当前仍是最小版本：已有滚动事件接入，但还没有 overscan、动态池扩容、item 高度测量和真实滚动 benchmark
 - 普通 `KEYED_LIST` 仍不能当长列表方案
 
 为什么先于 D2：

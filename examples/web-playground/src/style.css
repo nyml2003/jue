@@ -349,3 +349,41 @@ body {
   font-size: 1.05rem;
   line-height: 1.55;
 }
+
+.tab-panel-content > span:nth-child(3) {
+  display: block;
+  margin-top: 18px;
+  color: rgba(31, 27, 24, 0.58);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.tab-panel-content > span:nth-child(4) {
+  display: block;
+  margin-top: 10px;
+  color: #755337;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.tab-panel-content > div:first-of-type {
+  overflow-y: auto;
+  height: 320px;
+  margin-top: 16px;
+  padding: 8px;
+  border: 1px solid rgba(31, 27, 24, 0.1);
+  background: rgba(255, 252, 245, 0.5);
+}
+
+.tab-panel-list-row {
+  box-sizing: border-box;
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(31, 27, 24, 0.1);
+  background: rgba(31, 27, 24, 0.045);
+  color: rgba(31, 27, 24, 0.78);
+  font-size: 0.95rem;
+}
