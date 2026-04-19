@@ -1,12 +1,14 @@
 :root {
   color-scheme: light;
-  font-family: "Segoe UI", sans-serif;
+  font-family: "Iowan Old Style", "Palatino Linotype", serif;
 }
 
 body {
   margin: 0;
-  background: #f7f7f2;
-  color: #111111;
+  background:
+    radial-gradient(circle at top, rgba(194, 214, 255, 0.45), transparent 38%),
+    linear-gradient(180deg, #f6f1e8 0%, #ece5d8 100%);
+  color: #1f1b18;
 }
 
 #app {
@@ -17,8 +19,60 @@ body {
 }
 
 .card {
-  max-width: 640px;
-  padding: 24px;
-  border: 1px solid #111111;
-  background: #fffdf7;
+  width: min(560px, 100%);
+  padding: 32px;
+  border: 1px solid rgba(31, 27, 24, 0.12);
+  background: rgba(255, 252, 245, 0.92);
+  box-shadow: 0 24px 64px rgba(68, 52, 35, 0.12);
+}
+
+.card h1 {
+  margin: 0 0 12px;
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  line-height: 0.95;
+}
+
+.card p {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 28px;
+  flex-wrap: wrap;
+}
+
+.label {
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(31, 27, 24, 0.64);
+}
+
+.value {
+  min-width: 2ch;
+  font-size: clamp(2.5rem, 8vw, 4.5rem);
+  line-height: 1;
+}
+
+.button {
+  border: 0;
+  padding: 12px 18px;
+  font: inherit;
+  font-size: 1rem;
+  background: #1f1b18;
+  color: #fffaf2;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: #322b26;
+}
+
+.button:active {
+  transform: translateY(1px);
 }

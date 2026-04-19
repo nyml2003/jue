@@ -1,4 +1,7 @@
-import { LANE_COUNT, type Lane } from "@jue/shared";
+import { err, ok, LANE_COUNT, type Lane, type Result } from "@jue/shared";
+
+import type { DirtyBitError, DirtyBitset } from "./dirty-bits";
+import { markDirty } from "./dirty-bits";
 
 export interface SchedulerState {
   batchId: number;
@@ -19,6 +22,11 @@ export interface SchedulerState {
 }
 
 export type SchedulerQueueKind = "binding" | "region" | "channel" | "resource";
+
+export interface SchedulerStateError {
+  readonly code: string;
+  readonly message: string;
+}
 
 export function createSchedulerState(): SchedulerState {
   return {
@@ -57,6 +65,47 @@ export function enqueueSchedulerSlot(
   queue.push(slot);
   counts[lane] = (counts[lane] ?? 0) + 1;
   state.scheduledLanes |= 1 << lane;
+}
+
+export function enqueueUniqueSchedulerSlot(
+  state: SchedulerState,
+  bitset: DirtyBitset,
+  lane: Lane,
+  kind: SchedulerQueueKind,
+  slot: number
+): Result<boolean, DirtyBitError> {
+  const dirty = markDirty(bitset, slot);
+
+  if (!dirty.ok) {
+    return dirty;
+  }
+
+  if (!dirty.value) {
+    return ok(false);
+  }
+
+  enqueueSchedulerSlot(state, lane, kind, slot);
+  return ok(true);
+}
+
+export function beginSchedulerFlush(state: SchedulerState): Result<number, SchedulerStateError> {
+  if (state.scheduledLanes === 0) {
+    return err({
+      code: "NO_SCHEDULED_LANES",
+      message: "Cannot begin a flush when no lanes are scheduled."
+    });
+  }
+
+  state.batchId += 1;
+  state.flushingLanes = state.scheduledLanes;
+  state.scheduledLanes = 0;
+
+  return ok(state.batchId);
+}
+
+export function completeSchedulerFlush(state: SchedulerState): void {
+  state.flushingLanes = 0;
+  resetSchedulerQueues(state);
 }
 
 export function resetSchedulerQueues(state: SchedulerState): void {

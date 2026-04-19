@@ -52,6 +52,14 @@ export interface BlockInstance {
   readonly blueprint: Blueprint;
   readonly nodes: HostNode[];
   readonly signalValues: unknown[];
+  readonly signalVersion: Uint32Array;
+  readonly signalFlags: Uint8Array;
   readonly regionLifecycle: Uint8Array;
+  readonly resourceStatus: Uint8Array;
+  readonly resourceLaneState: Uint8Array;
+  readonly resourceVersion: Uint32Array;
+  readonly resourcePendingCount: Uint16Array;
+  readonly resourceValueRef: unknown[];
+  readonly resourceErrorRef: unknown[];
   readonly dirtyBindingBits: Uint32Array;
 }

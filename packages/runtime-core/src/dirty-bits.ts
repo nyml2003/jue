@@ -17,6 +17,13 @@ export function createDirtyBitset(size: number): DirtyBitset {
   };
 }
 
+export function createDirtyBitsetView(size: number, words: Uint32Array): DirtyBitset {
+  return {
+    size,
+    words
+  };
+}
+
 export function markDirty(bitset: DirtyBitset, slot: number): Result<boolean, DirtyBitError> {
   const range = validateRange(bitset, slot);
 

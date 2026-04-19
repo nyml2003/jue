@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@jue/shared": "workspace:*"
+    "@jue/shared": "workspace:*",
+    "@jue/web": "workspace:*"
   },
   "scripts": {
     "dev": "vite",
