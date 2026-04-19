@@ -9,6 +9,35 @@
 
 在这两个前提没有证实之前，不扩表面积，不谈生态，不谈兼容。
 
+## 当前状态
+
+当前阶段判断：
+
+- `A`：基本完成
+- `B`：基本完成
+- `C`：最小版本成立
+- `D1`：已进入稳定化阶段
+- `E / F / G`：尚未系统推进
+- `D2`：推迟到后面
+
+当前主线不再是“尽快接入完整编译前端”。
+
+当前主线是：
+
+`D1 -> E -> F -> G -> D2`
+
+原因：
+
+- 先把 `BlockIR / lowering / Builder` 契约做稳
+- 先把 region / channel / resource 的 runtime 边界做稳
+- 先验证布局和热路径是否真的值得
+- 最后再接入完整编译前端
+
+注意：
+
+- 这里说的是“完整 compiler frontend 放后面”
+- 不排斥在 `D2` 之前插入一个极小的 frontend canary 来验证 IR/lowering 没有只适配 Builder
+
 ## Milestone A：IR 与最小运行时链路
 
 目标：
@@ -28,6 +57,10 @@
 
 - 一次 `setSignal(slot)` 可以直接命中 binding slot 并完成 `setText`
 
+当前状态：
+
+- 已完成，并且实际能力已经超出最初定义
+
 ## Milestone B：State Core 与 Scheduler
 
 目标：
@@ -44,7 +77,13 @@
 
 退出条件：
 
-- 热路径里没有 `activeEffect`、没有动态依赖收集、没有对象图遍历
+- 热路径里没有 `activeEffect`
+- 没有动态依赖收集
+- 没有对象图遍历
+
+当前状态：
+
+- 已完成最小主链
 
 ## Milestone C：DOM Renderer
 
@@ -61,7 +100,14 @@
 
 退出条件：
 
-- runtime-core 不导入 DOM API 也能完成挂载和更新
+- `runtime-core` 不导入 DOM API 也能完成挂载和更新
+
+当前状态：
+
+- 最小版本成立
+- `TEXT / PROP / STYLE / EVENT` 已打通
+- 静态节点表挂载已成立
+- `ATTR / CLASS_TOGGLE` 等细分路径还没有单独收敛
 
 ## Milestone D1：BlockIR / lowering / Builder
 
@@ -76,19 +122,100 @@
 - `BlueprintBuilder`
 - fixture / example 迁移到 `BlockIR -> Blueprint`
 - lowering 排序、参数区和依赖表生成
+- Builder 完整性校验和错误诊断
 
 退出条件：
 
 - counter 示例经由 `Builder / BlockIR -> Blueprint` 路径生成后，运行时只消费索引表，不做依赖推理
 - 不再需要手写 `Uint32Array` / `Uint8Array` fixture
+- Builder 足够稳定，能承担 fixture / example 的主要 authoring 面
+- lowering 的 node / binding / 参数区 / `signalToBindings` 规则有明确测试保护
 
 当前状态：
 
-- 已开始
+- 已开始且主链已跑通
 - `BlockIR`
 - lowering
 - `BlueprintBuilder`
 - example 已迁移到这条链
+- 当前正处于稳定化阶段
+
+下一步重点：
+
+- 继续增强 Builder 拓扑校验
+- 固化 lowering 的确定性输出规则
+- 让更多 fixture / example 迁移到 Builder
+
+## Milestone E：Region 与动态结构加固
+
+目标：
+
+- 把条件分支和 keyed list 收敛成局部 region 更新
+
+范围：
+
+- conditional region
+- keyed list region
+- nested block region
+- region disposal
+- virtual list region
+
+退出条件：
+
+- 高频 region 切换不会触发父 block 广域重算
+- 长列表滚动不会退化成整批节点创建和销毁
+
+为什么先于 D2：
+
+- region 是 runtime / IR 契约问题，不是作者输入表面问题
+- 先把 region 边界做稳，再接前端，错误成本更低
+
+## Milestone F：跨边界通信与异步调度
+
+目标：
+
+- 在不引入全局共享状态的前提下覆盖复杂业务通信和异步更新
+
+范围：
+
+- channel / port 订阅表
+- scheduler lane
+- async resource version 校验
+- channel 与 dirty queue 协同
+
+退出条件：
+
+- 跨 Instance 更新不依赖全局 signal
+- 异步结果不会覆盖更新版本更高的状态
+
+为什么先于 D2：
+
+- channel / resource 仍然属于 runtime / IR 契约问题
+- 先让后端语义层稳定，再让前端去产出这些语义
+
+## Milestone G：V8 与基准验证
+
+目标：
+
+- 用仓库内证据证明这套布局确实减少了运行时成本
+
+范围：
+
+- operation count
+- naive rerender baseline
+- V8 profile
+- hidden class / deopt 排查
+- benchmark harness
+
+退出条件：
+
+- 能明确展示 slot / 数组化方案相对 naive baseline 的收益
+- 能解释主要收益来自哪里
+- 能识别当前布局的主要瓶颈和下一步优化方向
+
+为什么先于 D2：
+
+- 先验证 runtime / lowering 值不值得，再决定前端要为哪套契约服务
 
 ## Milestone D2：Compiler Frontend
 
@@ -111,64 +238,14 @@
 - compiler 前端不直接拼 typed arrays
 - counter 示例可以不经 hand-written builder 而由编译前端生成
 
-## Milestone E：Region 与动态结构加固
+备注：
 
-目标：
-
-- 把条件分支和 keyed list 收敛成局部 region 更新
-
-范围：
-
-- conditional region
-- keyed list region
-- nested block region
-- region disposal
-- virtual list region
-
-退出条件：
-
-- 高频 region 切换不会触发父 block 广域重算
-- 长列表滚动不会退化成整批节点创建和销毁
-
-## Milestone F：跨边界通信与异步调度
-
-目标：
-
-- 在不引入全局共享状态的前提下覆盖复杂业务通信和异步更新
-
-范围：
-
-- channel / port 订阅表
-- scheduler lane
-- async resource version 校验
-- channel 与 dirty queue 协同
-
-退出条件：
-
-- 跨 Instance 更新不依赖全局 signal
-- 异步结果不会覆盖更新版本更高的状态
-
-## Milestone G：V8 与基准验证
-
-目标：
-
-- 用仓库内证据证明这套布局确实减少了运行时成本
-
-范围：
-
-- operation count
-- naive rerender baseline
-- V8 profile
-- hidden class / deopt 排查
-- benchmark harness
-
-退出条件：
-
-- 能明确展示 slot/数组化方案相对 naive baseline 的收益
+- `D2` 推迟，不代表完全不做前端验证
+- 在 `D2` 正式开始前，可以插入一个极小的 frontend canary，验证 `BlockIR / lowering` 没有只适配 Builder
 
 ## 早期不要做的事
 
-在 Milestone G 之前，不推进这些方向：
+在 `G` 之前，不推进这些方向：
 
 - SSR 与 hydration
 - resumability
@@ -189,3 +266,5 @@
 4. DOM 更新路径只走 binding patch
 5. 对本地 naive baseline 有 benchmark 和 profile 证据
 6. 长列表、跨边界通信、异步更新都有受控模型，不靠兜底全局状态
+7. 编译前后端边界清晰：
+   `author input / Builder -> BlockIR -> lowering -> Blueprint -> runtime`

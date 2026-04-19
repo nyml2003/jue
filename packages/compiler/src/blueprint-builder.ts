@@ -209,6 +209,7 @@ function validateBuilderState(
 
   const nodeIds = new Set<number>();
   const rootIds: number[] = [];
+  const nodeById = new Map<number, IRNode>();
 
   for (const node of nodes) {
     if (nodeIds.has(node.id)) {
@@ -219,6 +220,7 @@ function validateBuilderState(
     }
 
     nodeIds.add(node.id);
+    nodeById.set(node.id, node);
     if (node.parent === null) {
       rootIds.push(node.id);
       continue;
@@ -236,6 +238,70 @@ function validateBuilderState(
     return err({
       code: "BUILDER_INVALID_ROOT_COUNT",
       message: `A block must contain exactly one root node, got ${rootIds.length}.`
+    });
+  }
+
+  const rootId = rootIds[0];
+  if (rootId === undefined) {
+    return err({
+      code: "BUILDER_INVALID_ROOT_COUNT",
+      message: "A block must contain exactly one root node, got 0."
+    });
+  }
+
+  for (const node of nodes) {
+    const visited = new Set<number>([node.id]);
+    let cursor = node.parent;
+
+    while (cursor !== null) {
+      if (visited.has(cursor)) {
+        return err({
+          code: "BUILDER_CYCLE_DETECTED",
+          message: `Node ${node.id} participates in a parent cycle through node ${cursor}.`
+        });
+      }
+
+      visited.add(cursor);
+      const parentNode = nodeById.get(cursor);
+      if (!parentNode) {
+        return err({
+          code: "BUILDER_PARENT_REFERENCE_MISSING",
+          message: `Node ${node.id} references missing parent ${cursor}.`
+        });
+      }
+
+      cursor = parentNode.parent;
+    }
+  }
+
+  const reachable = new Set<number>([rootId]);
+  const queue = [rootId];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (current === undefined) {
+      continue;
+    }
+
+    for (const node of nodes) {
+      if (node.parent !== current || reachable.has(node.id)) {
+        continue;
+      }
+
+      reachable.add(node.id);
+      queue.push(node.id);
+    }
+  }
+
+  if (reachable.size !== nodes.length) {
+    const unreachableIds = nodes
+      .filter(node => !reachable.has(node.id))
+      .map(node => node.id)
+      .sort((left, right) => left - right);
+
+    return err({
+      code: "BUILDER_UNREACHABLE_NODE",
+      message: `Nodes ${unreachableIds.join(", ")} are not reachable from root ${rootId}.`
     });
   }
 

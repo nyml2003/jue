@@ -98,4 +98,46 @@ describe("@jue/compiler", () => {
     expect(a).toBe(0);
     expect(b).toBe(1);
   });
+
+  it("reports unreachable nodes in a split tree", () => {
+    const builder = createBlueprintBuilder();
+    builder.setSignalCount(1);
+
+    const root = builder.element("View");
+    const reachable = builder.element("View");
+    const orphan = builder.text("orphan");
+
+    expect(builder.append(root, reachable).ok).toBe(true);
+
+    const block = builder.buildIR();
+    expect(block).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_INVALID_ROOT_COUNT",
+        message: "A block must contain exactly one root node, got 2."
+      }
+    });
+
+    expect(root).toBe(0);
+    expect(reachable).toBe(1);
+    expect(orphan).toBe(2);
+  });
+
+  it("reports signal slots that exceed the configured signal count", () => {
+    const builder = createBlueprintBuilder();
+    builder.setSignalCount(1);
+
+    const root = builder.element("View");
+    builder.bindProp(root, "className", 2);
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_SIGNAL_OUT_OF_RANGE",
+        message: "Binding references signal slot 2, but signalCount is 1."
+      }
+    });
+  });
 });
