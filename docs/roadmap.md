@@ -1,0 +1,161 @@
+# 路线图
+
+## 交付策略
+
+现在的路线图围绕两个目标排：
+
+- 先证明“完全显式依赖追踪”可行
+- 再证明“这套布局确实对 V8 友好”
+
+在这两个前提没有证实之前，不扩表面积，不谈生态，不谈兼容。
+
+## Milestone A：IR 与最小运行时链路
+
+目标：
+
+- 固定 slot、binding、region 的基本模型
+
+范围：
+
+- `Blueprint`
+- `BlockInstance`
+- opcode
+- `signalToBindings`
+- dirty queue
+- 一个 text binding patch
+
+退出条件：
+
+- 一次 `setSignal(slot)` 可以直接命中 binding slot 并完成 `setText`
+
+## Milestone B：State Core 与 Scheduler
+
+目标：
+
+- 建立不依赖运行时依赖收集的 signal 写入路径
+
+范围：
+
+- signal 值表
+- batch 调度
+- dirty bitset
+- 显式 `flush()`
+- disposal 基础机制
+
+退出条件：
+
+- 热路径里没有 `activeEffect`、没有动态依赖收集、没有对象图遍历
+
+## Milestone C：DOM Renderer
+
+目标：
+
+- 通过窄 host 接口驱动真实 DOM
+
+范围：
+
+- text / element 创建
+- insert / remove
+- attr / prop / style / class patch
+- event binding
+
+退出条件：
+
+- runtime-core 不导入 DOM API 也能完成挂载和更新
+
+## Milestone D：Compiler 输出显式依赖表
+
+目标：
+
+- 让 TSX 输入直接产出 slot graph 和 `Blueprint`
+
+范围：
+
+- TSX 解析
+- 静态结构 hoist
+- binding 降级
+- signal slot 分配
+- `signalToBindings` 生成
+
+退出条件：
+
+- counter 示例编译后，运行时只消费索引表，不做依赖推理
+
+## Milestone E：Region 与动态结构加固
+
+目标：
+
+- 把条件分支和 keyed list 收敛成局部 region 更新
+
+范围：
+
+- conditional region
+- keyed list region
+- nested block region
+- region disposal
+- virtual list region
+
+退出条件：
+
+- 高频 region 切换不会触发父 block 广域重算
+- 长列表滚动不会退化成整批节点创建和销毁
+
+## Milestone F：跨边界通信与异步调度
+
+目标：
+
+- 在不引入全局共享状态的前提下覆盖复杂业务通信和异步更新
+
+范围：
+
+- channel / port 订阅表
+- scheduler lane
+- async resource version 校验
+- channel 与 dirty queue 协同
+
+退出条件：
+
+- 跨 Instance 更新不依赖全局 signal
+- 异步结果不会覆盖更新版本更高的状态
+
+## Milestone G：V8 与基准验证
+
+目标：
+
+- 用仓库内证据证明这套布局确实减少了运行时成本
+
+范围：
+
+- operation count
+- naive rerender baseline
+- V8 profile
+- hidden class / deopt 排查
+- benchmark harness
+
+退出条件：
+
+- 能明确展示 slot/数组化方案相对 naive baseline 的收益
+
+## 早期不要做的事
+
+在 Milestone G 之前，不推进这些方向：
+
+- SSR 与 hydration
+- resumability
+- 原生渲染目标
+- React 兼容层
+- 插件架构
+- 面向外部的稳定 API 承诺
+
+这些方向会在核心路径未证实时，过早放大系统复杂度。
+
+## 发布门槛
+
+在称第一版原型“可用”之前，至少满足：
+
+1. 显式依赖表完整可执行
+2. 热路径里没有运行时依赖收集
+3. `Blueprint` 和 `BlockInstance` 结构稳定
+4. DOM 更新路径只走 binding patch
+5. 对本地 naive baseline 有 benchmark 和 profile 证据
+6. 长列表、跨边界通信、异步更新都有受控模型，不靠兜底全局状态

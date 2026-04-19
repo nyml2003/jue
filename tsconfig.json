@@ -1,0 +1,23 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/shared"
+    },
+    {
+      "path": "./packages/runtime-core"
+    },
+    {
+      "path": "./packages/compiler"
+    },
+    {
+      "path": "./packages/web"
+    },
+    {
+      "path": "./packages/native"
+    },
+    {
+      "path": "./examples/web-playground"
+    }
+  ]
+}
