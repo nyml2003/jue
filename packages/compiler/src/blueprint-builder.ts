@@ -1,6 +1,14 @@
 import { err, ok, type HostEventKey, type HostPrimitive, type Result } from "@jue/shared";
 
-import { lowerBlockIRToBlueprint, type BlockIR, type IRBinding, type IRNode, type LowerBlockIRError, type LoweredBlockIR } from "./block-ir";
+import {
+  lowerBlockIRToBlueprint,
+  type BlockIR,
+  type IRBinding,
+  type IRNode,
+  type IRRegion,
+  type LowerBlockIRError,
+  type LoweredBlockIR
+} from "./block-ir";
 
 export interface BlueprintBuilder {
   readonly signalCount: number;
@@ -9,6 +17,9 @@ export interface BlueprintBuilder {
   element(type: HostPrimitive): number;
   text(value: string): number;
   append(parent: number, child: number): Result<void, BlueprintBuilderError>;
+  defineConditionalRegion(region: ConditionalRegionDefinition): void;
+  defineKeyedListRegion(region: KeyedListRegionDefinition): void;
+  defineNestedBlockRegion(region: NestedBlockRegionDefinition): void;
   bindText(node: number, signal: number): void;
   bindProp(node: number, key: string, signal: number): void;
   bindStyle(node: number, key: string, signal: number): void;
@@ -22,12 +33,35 @@ export interface BlueprintBuilderError {
   readonly message: string;
 }
 
+export interface ConditionalRegionDefinition {
+  readonly anchorStartNode: number;
+  readonly anchorEndNode: number;
+  readonly branches: readonly {
+    readonly startNode: number;
+    readonly endNode: number;
+  }[];
+}
+
+export interface NestedBlockRegionDefinition {
+  readonly anchorStartNode: number;
+  readonly anchorEndNode: number;
+  readonly childBlockSlot: number;
+  readonly childBlueprintSlot: number;
+  readonly mountMode: "attach" | "replace";
+}
+
+export interface KeyedListRegionDefinition {
+  readonly anchorStartNode: number;
+  readonly anchorEndNode: number;
+}
+
 export function createBlueprintBuilder(): BlueprintBuilder {
   let nextNodeId = 0;
   let signalCount = 0;
   let initialSignalValues: readonly unknown[] = [];
   const nodes: IRNode[] = [];
   const bindings: IRBinding[] = [];
+  const regions: IRRegion[] = [];
 
   return {
     get signalCount() {
@@ -105,6 +139,31 @@ export function createBlueprintBuilder(): BlueprintBuilder {
       nodes[nodeIndex] = nextNode;
       return ok(undefined);
     },
+    defineConditionalRegion(region) {
+      regions.push({
+        kind: "conditional",
+        anchorStartNode: region.anchorStartNode,
+        anchorEndNode: region.anchorEndNode,
+        branches: [...region.branches]
+      });
+    },
+    defineKeyedListRegion(region) {
+      regions.push({
+        kind: "keyed-list",
+        anchorStartNode: region.anchorStartNode,
+        anchorEndNode: region.anchorEndNode
+      });
+    },
+    defineNestedBlockRegion(region) {
+      regions.push({
+        kind: "nested-block",
+        anchorStartNode: region.anchorStartNode,
+        anchorEndNode: region.anchorEndNode,
+        childBlockSlot: region.childBlockSlot,
+        childBlueprintSlot: region.childBlueprintSlot,
+        mountMode: region.mountMode
+      });
+    },
     bindText(node, signal) {
       bindings.push({
         kind: "text",
@@ -137,7 +196,7 @@ export function createBlueprintBuilder(): BlueprintBuilder {
       });
     },
     buildIR() {
-      const validation = validateBuilderState(signalCount, initialSignalValues, nodes, bindings);
+      const validation = validateBuilderState(signalCount, initialSignalValues, nodes, bindings, regions);
       if (!validation.ok) {
         return validation;
       }
@@ -146,7 +205,8 @@ export function createBlueprintBuilder(): BlueprintBuilder {
         signalCount,
         initialSignalValues,
         nodes: [...nodes],
-        bindings: [...bindings]
+        bindings: [...bindings],
+        regions: [...regions]
       });
     },
     buildBlueprint() {
@@ -184,7 +244,8 @@ function validateBuilderState(
   signalCount: number,
   initialSignalValues: readonly unknown[],
   nodes: readonly IRNode[],
-  bindings: readonly IRBinding[]
+  bindings: readonly IRBinding[],
+  regions: readonly IRRegion[]
 ): Result<void, BlueprintBuilderError> {
   if (signalCount < 0) {
     return err({
@@ -325,6 +386,86 @@ function validateBuilderState(
         }
         break;
       case "event":
+        break;
+    }
+  }
+
+  for (const region of regions) {
+    switch (region.kind) {
+      case "conditional":
+        if (!nodeIds.has(region.anchorStartNode)) {
+          return err({
+            code: "BUILDER_REGION_ANCHOR_MISSING",
+            message: `Conditional region references missing anchorStartNode ${region.anchorStartNode}.`
+          });
+        }
+
+        if (!nodeIds.has(region.anchorEndNode)) {
+          return err({
+            code: "BUILDER_REGION_ANCHOR_MISSING",
+            message: `Conditional region references missing anchorEndNode ${region.anchorEndNode}.`
+          });
+        }
+
+        for (const branch of region.branches) {
+          if (!nodeIds.has(branch.startNode)) {
+            return err({
+              code: "BUILDER_REGION_BRANCH_MISSING",
+              message: `Conditional region references missing branch startNode ${branch.startNode}.`
+            });
+          }
+
+          if (!nodeIds.has(branch.endNode)) {
+            return err({
+              code: "BUILDER_REGION_BRANCH_MISSING",
+              message: `Conditional region references missing branch endNode ${branch.endNode}.`
+            });
+          }
+        }
+        break;
+      case "nested-block":
+        if (!nodeIds.has(region.anchorStartNode)) {
+          return err({
+            code: "BUILDER_REGION_ANCHOR_MISSING",
+            message: `Nested block region references missing anchorStartNode ${region.anchorStartNode}.`
+          });
+        }
+
+        if (!nodeIds.has(region.anchorEndNode)) {
+          return err({
+            code: "BUILDER_REGION_ANCHOR_MISSING",
+            message: `Nested block region references missing anchorEndNode ${region.anchorEndNode}.`
+          });
+        }
+
+        if (region.childBlockSlot < 0) {
+          return err({
+            code: "BUILDER_REGION_NESTED_SLOT_INVALID",
+            message: `Nested block region childBlockSlot ${region.childBlockSlot} must be >= 0.`
+          });
+        }
+
+        if (region.childBlueprintSlot < 0) {
+          return err({
+            code: "BUILDER_REGION_NESTED_SLOT_INVALID",
+            message: `Nested block region childBlueprintSlot ${region.childBlueprintSlot} must be >= 0.`
+          });
+        }
+        break;
+      case "keyed-list":
+        if (!nodeIds.has(region.anchorStartNode)) {
+          return err({
+            code: "BUILDER_REGION_ANCHOR_MISSING",
+            message: `Keyed list region references missing anchorStartNode ${region.anchorStartNode}.`
+          });
+        }
+
+        if (!nodeIds.has(region.anchorEndNode)) {
+          return err({
+            code: "BUILDER_REGION_ANCHOR_MISSING",
+            message: `Keyed list region references missing anchorEndNode ${region.anchorEndNode}.`
+          });
+        }
         break;
     }
   }

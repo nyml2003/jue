@@ -21,6 +21,13 @@ export interface CreateBlueprintInput {
   readonly regionType: Uint8Array;
   readonly regionAnchorStart: Uint32Array;
   readonly regionAnchorEnd: Uint32Array;
+  readonly regionBranchRangeStart?: Uint32Array;
+  readonly regionBranchRangeCount?: Uint32Array;
+  readonly regionBranchNodeStart?: Uint32Array;
+  readonly regionBranchNodeEnd?: Uint32Array;
+  readonly regionNestedBlockSlot?: Uint32Array;
+  readonly regionNestedBlueprintSlot?: Uint32Array;
+  readonly regionNestedMountMode?: Uint8Array;
   readonly signalToBindingStart?: Uint32Array;
   readonly signalToBindingCount?: Uint32Array;
   readonly signalToBindings?: Uint32Array;
@@ -43,7 +50,14 @@ export function createBlueprint(input: CreateBlueprintInput): Result<Blueprint, 
     bindingDataIndex,
     regionType,
     regionAnchorStart,
-    regionAnchorEnd
+    regionAnchorEnd,
+    regionBranchRangeStart,
+    regionBranchRangeCount,
+    regionBranchNodeStart,
+    regionBranchNodeEnd,
+    regionNestedBlockSlot,
+    regionNestedBlueprintSlot,
+    regionNestedMountMode
   } = input;
 
   if (bindingOpcode.length !== bindingNodeIndex.length || bindingOpcode.length !== bindingDataIndex.length) {
@@ -57,6 +71,43 @@ export function createBlueprint(input: CreateBlueprintInput): Result<Blueprint, 
     return err({
       code: "INVALID_REGION_TABLE",
       message: "region type and anchor tables must have the same length."
+    });
+  }
+
+  const resolvedRegionBranchRangeStart = regionBranchRangeStart ?? new Uint32Array(regionType.length);
+  const resolvedRegionBranchRangeCount = regionBranchRangeCount ?? new Uint32Array(regionType.length);
+  const resolvedRegionBranchNodeStart = regionBranchNodeStart ?? new Uint32Array(0);
+  const resolvedRegionBranchNodeEnd = regionBranchNodeEnd ?? new Uint32Array(0);
+
+  if (
+    resolvedRegionBranchRangeStart.length !== regionType.length ||
+    resolvedRegionBranchRangeCount.length !== regionType.length
+  ) {
+    return err({
+      code: "INVALID_REGION_BRANCH_TABLE",
+      message: "region branch range tables must have the same length as regionType."
+    });
+  }
+
+  if (resolvedRegionBranchNodeStart.length !== resolvedRegionBranchNodeEnd.length) {
+    return err({
+      code: "INVALID_REGION_BRANCH_NODE_TABLE",
+      message: "region branch node start and end tables must have the same length."
+    });
+  }
+
+  const resolvedRegionNestedBlockSlot = regionNestedBlockSlot ?? fillInvalidNodeTable(regionType.length);
+  const resolvedRegionNestedBlueprintSlot = regionNestedBlueprintSlot ?? fillInvalidNodeTable(regionType.length);
+  const resolvedRegionNestedMountMode = regionNestedMountMode ?? new Uint8Array(regionType.length);
+
+  if (
+    resolvedRegionNestedBlockSlot.length !== regionType.length ||
+    resolvedRegionNestedBlueprintSlot.length !== regionType.length ||
+    resolvedRegionNestedMountMode.length !== regionType.length
+  ) {
+    return err({
+      code: "INVALID_REGION_NESTED_TABLE",
+      message: "nested block region tables must have the same length as regionType."
     });
   }
 
@@ -102,6 +153,13 @@ export function createBlueprint(input: CreateBlueprintInput): Result<Blueprint, 
     regionType,
     regionAnchorStart,
     regionAnchorEnd,
+    regionBranchRangeStart: resolvedRegionBranchRangeStart,
+    regionBranchRangeCount: resolvedRegionBranchRangeCount,
+    regionBranchNodeStart: resolvedRegionBranchNodeStart,
+    regionBranchNodeEnd: resolvedRegionBranchNodeEnd,
+    regionNestedBlockSlot: resolvedRegionNestedBlockSlot,
+    regionNestedBlueprintSlot: resolvedRegionNestedBlueprintSlot,
+    regionNestedMountMode: resolvedRegionNestedMountMode,
     signalToBindingStart: input.signalToBindingStart ?? new Uint32Array(0),
     signalToBindingCount: input.signalToBindingCount ?? new Uint32Array(0),
     signalToBindings: input.signalToBindings ?? new Uint32Array(0)
@@ -125,6 +183,13 @@ export function createEmptyBlueprint(): Blueprint {
     regionType: new Uint8Array(0),
     regionAnchorStart: new Uint32Array(0),
     regionAnchorEnd: new Uint32Array(0),
+    regionBranchRangeStart: new Uint32Array(0),
+    regionBranchRangeCount: new Uint32Array(0),
+    regionBranchNodeStart: new Uint32Array(0),
+    regionBranchNodeEnd: new Uint32Array(0),
+    regionNestedBlockSlot: new Uint32Array(0),
+    regionNestedBlueprintSlot: new Uint32Array(0),
+    regionNestedMountMode: new Uint8Array(0),
     signalToBindingStart: new Uint32Array(0),
     signalToBindingCount: new Uint32Array(0),
     signalToBindings: new Uint32Array(0)

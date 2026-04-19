@@ -1,11 +1,17 @@
 import {
+  beginConditionalRegionSwitch,
   createBlockInstance,
   createSchedulerState,
+  completeConditionalRegionContentSwitch,
+  disposeConditionalRegionContent,
   enqueueSchedulerSlot,
   flushBindingQueue,
+  getConditionalRegionMountedBranch,
+  mountConditionalRegionContent,
   scheduleSignalWrite,
   type BlockInstance,
   type Blueprint,
+  type ConditionalRegionContentHooks,
   type FlushBindingsResult,
   type HostNode,
   type HostRoot
@@ -25,11 +31,27 @@ export interface MountTreeInput {
   readonly initialSignalValues?: readonly unknown[];
 }
 
+export type SignalWrite = readonly [slot: number, value: unknown, lane?: Lane];
+
+export interface MountedTreeRegions {
+  conditional(slot: number): MountedConditionalRegion;
+}
+
+export interface MountedConditionalRegion {
+  attach(branchIndex: number): Result<FlushBindingsResult, MountBlockError>;
+  switchTo(branchIndex: number): Result<FlushBindingsResult, MountBlockError>;
+  clear(): Result<FlushBindingsResult, MountBlockError>;
+}
+
 export interface MountedTree {
   readonly instance: BlockInstance;
   readonly nodes: readonly HostNode[];
+  readonly regions: MountedTreeRegions;
   flushInitialBindings(): Result<FlushBindingsResult, MountBlockError>;
   setSignal(slot: number, value: unknown, lane?: Lane): Result<FlushBindingsResult, MountBlockError>;
+  setSignals(writes: readonly SignalWrite[], lane?: Lane): Result<FlushBindingsResult, MountBlockError>;
+  mountRange(startNode: number, endNode: number): Result<void, MountBlockError>;
+  disposeRange(startNode: number, endNode: number): Result<void, MountBlockError>;
   dispose(): Result<void, MountBlockError>;
 }
 
@@ -96,11 +118,106 @@ export function mountTree(input: MountTreeInput): Result<MountedTree, MountBlock
   }
 
   const scheduler = createSchedulerState();
+  const nodeMounted = new Array<boolean>(nodes.length).fill(true);
   let disposed = false;
 
-  return ok({
+  const conditionalContentHooks: ConditionalRegionContentHooks = {
+    mountBranchContent(context) {
+      return mountedTree.mountRange(context.startNode, context.endNode).ok;
+    },
+    disposeBranchContent(context) {
+      return mountedTree.disposeRange(context.startNode, context.endNode).ok;
+    }
+  };
+
+  const mountedTree: MountedTree = {
     instance,
     nodes,
+    regions: {
+      conditional(slot) {
+        return {
+          attach(branchIndex) {
+            if (disposed) {
+              return err({
+                code: "TREE_MOUNT_DISPOSED",
+                message: "Cannot attach a conditional region after the mounted tree has been disposed."
+              });
+            }
+
+            const attached = mountConditionalRegionContent(
+              instance,
+              slot,
+              branchIndex,
+              conditionalContentHooks
+            );
+
+            return attached
+              ? mountedTree.flushInitialBindings()
+              : err({
+                code: "MOUNT_TREE_CONDITIONAL_ATTACH_REJECTED",
+                message: `Conditional region ${slot} rejected attach for branch ${branchIndex}.`
+              });
+          },
+          switchTo(branchIndex) {
+            if (disposed) {
+              return err({
+                code: "TREE_MOUNT_DISPOSED",
+                message: "Cannot switch a conditional region after the mounted tree has been disposed."
+              });
+            }
+
+            const currentBranch = getConditionalRegionMountedBranch(instance, slot);
+            if (currentBranch === branchIndex) {
+              return ok({
+                batchId: scheduler.batchId,
+                flushedBindingCount: 0
+              });
+            }
+
+            if (!beginConditionalRegionSwitch(instance, slot, branchIndex)) {
+              return err({
+                code: "MOUNT_TREE_CONDITIONAL_SWITCH_REJECTED",
+                message: `Conditional region ${slot} rejected switch to branch ${branchIndex}.`
+              });
+            }
+
+            const switched = completeConditionalRegionContentSwitch(
+              instance,
+              slot,
+              conditionalContentHooks
+            );
+
+            return switched
+              ? mountedTree.flushInitialBindings()
+              : err({
+                code: "MOUNT_TREE_CONDITIONAL_SWITCH_FAILED",
+                message: `Conditional region ${slot} failed while switching to branch ${branchIndex}.`
+              });
+          },
+          clear() {
+            if (disposed) {
+              return err({
+                code: "TREE_MOUNT_DISPOSED",
+                message: "Cannot clear a conditional region after the mounted tree has been disposed."
+              });
+            }
+
+            const cleared = disposeConditionalRegionContent(
+              instance,
+              slot,
+              conditionalContentHooks
+            );
+
+            return cleared
+              ? mountedTree.flushInitialBindings()
+              : err({
+                code: "MOUNT_TREE_CONDITIONAL_CLEAR_REJECTED",
+                message: `Conditional region ${slot} rejected clear.`
+              });
+          }
+        };
+      }
+    },
     flushInitialBindings() {
       if (disposed) {
         return err({
@@ -145,6 +262,139 @@ export function mountTree(input: MountTreeInput): Result<MountedTree, MountBlock
 
       return flushBindingQueue(instance, scheduler, adapter);
     },
+    setSignals(writes, lane = Lane.VISIBLE_UPDATE) {
+      if (disposed) {
+        return err({
+          code: "TREE_MOUNT_DISPOSED",
+          message: "Cannot write signals after the mounted tree has been disposed."
+        });
+      }
+
+      let changed = false;
+
+      for (const [slot, value, writeLane] of writes) {
+        const scheduleResult = scheduleSignalWrite(
+          instance,
+          scheduler,
+          writeLane ?? lane,
+          slot,
+          value
+        );
+
+        if (!scheduleResult.ok) {
+          return err(scheduleResult.error);
+        }
+
+        changed = changed || scheduleResult.value.changed;
+      }
+
+      if (!changed) {
+        return ok({
+          batchId: scheduler.batchId,
+          flushedBindingCount: 0
+        });
+      }
+
+      return flushBindingQueue(instance, scheduler, adapter);
+    },
+    mountRange(startNode, endNode) {
+      if (disposed) {
+        return err({
+          code: "TREE_MOUNT_DISPOSED",
+          message: "Cannot mount a node range after the mounted tree has been disposed."
+        });
+      }
+
+      if (startNode < 0 || endNode < startNode || endNode >= nodes.length) {
+        return err({
+          code: "MOUNT_TREE_RANGE_INVALID",
+          message: `Node range ${startNode}-${endNode} is out of bounds.`
+        });
+      }
+
+      for (const index of getRangeRootNodeIndexes(input.blueprint, startNode, endNode)) {
+        if (nodeMounted[index]) {
+          continue;
+        }
+
+        const node = nodes[index];
+        if (!node) {
+          return err({
+            code: "MOUNT_TREE_NODE_MISSING",
+            message: `Blueprint node ${index} was not created.`
+          });
+        }
+
+        const parentResult = resolveParent(input.blueprint, hostRoot, nodes, nodeMounted, index);
+        if (!parentResult.ok) {
+          return parentResult;
+        }
+
+        const anchor = findMountedAnchor(input.blueprint, nodes, nodeMounted, index);
+        const insertResult = adapter.insert(parentResult.value, node, anchor);
+        if (!insertResult.ok) {
+          return err(insertResult.error);
+        }
+
+        nodeMounted[index] = true;
+      }
+
+      for (let index = startNode; index <= endNode; index += 1) {
+        nodeMounted[index] = true;
+      }
+
+      return ok(undefined);
+    },
+    disposeRange(startNode, endNode) {
+      if (disposed) {
+        return err({
+          code: "TREE_MOUNT_DISPOSED",
+          message: "Cannot dispose a node range after the mounted tree has been disposed."
+        });
+      }
+
+      if (startNode < 0 || endNode < startNode || endNode >= nodes.length) {
+        return err({
+          code: "MOUNT_TREE_RANGE_INVALID",
+          message: `Node range ${startNode}-${endNode} is out of bounds.`
+        });
+      }
+
+      const rootIndexes = getRangeRootNodeIndexes(input.blueprint, startNode, endNode)
+        .sort((left, right) => right - left);
+
+      for (const index of rootIndexes) {
+        if (!nodeMounted[index]) {
+          continue;
+        }
+
+        const node = nodes[index];
+        if (!node) {
+          return err({
+            code: "MOUNT_TREE_NODE_MISSING",
+            message: `Blueprint node ${index} was not created.`
+          });
+        }
+
+        const parentResult = resolveParent(input.blueprint, hostRoot, nodes, nodeMounted, index);
+        if (!parentResult.ok) {
+          return parentResult;
+        }
+
+        const removeResult = adapter.remove(parentResult.value, node);
+        if (!removeResult.ok) {
+          return err(removeResult.error);
+        }
+
+        nodeMounted[index] = false;
+      }
+
+      for (let index = startNode; index <= endNode; index += 1) {
+        nodeMounted[index] = false;
+      }
+
+      return ok(undefined);
+    },
     dispose() {
       if (disposed) {
         return ok(undefined);
@@ -152,7 +402,7 @@ export function mountTree(input: MountTreeInput): Result<MountedTree, MountBlock
 
       for (let index = nodes.length - 1; index >= 0; index -= 1) {
         const node = nodes[index];
-        if (!node) {
+        if (!node || !nodeMounted[index]) {
           continue;
         }
 
@@ -172,12 +422,89 @@ export function mountTree(input: MountTreeInput): Result<MountedTree, MountBlock
         if (!removeResult.ok) {
           return err(removeResult.error);
         }
+
+        nodeMounted[index] = false;
       }
 
       disposed = true;
       return ok(undefined);
     }
-  });
+  };
+
+  return ok(mountedTree);
+}
+
+function resolveParent(
+  blueprint: Blueprint,
+  hostRoot: HostRoot,
+  nodes: HostNode[],
+  nodeMounted: boolean[],
+  index: number
+): Result<HostNode | HostRoot, MountBlockError> {
+  const parentIndex = blueprint.nodeParentIndex[index];
+  if (parentIndex === undefined || parentIndex === INVALID_INDEX) {
+    return ok(hostRoot);
+  }
+
+  if (!nodeMounted[parentIndex]) {
+    return err({
+      code: "MOUNT_TREE_PARENT_UNMOUNTED",
+      message: `Blueprint node ${index} references parent ${parentIndex}, but that parent is not mounted.`
+    });
+  }
+
+  const parent = nodes[parentIndex];
+  if (!parent) {
+    return err({
+      code: "MOUNT_TREE_PARENT_MISSING",
+      message: `Blueprint node ${index} references missing parent index ${parentIndex}.`
+    });
+  }
+
+  return ok(parent);
+}
+
+function findMountedAnchor(
+  blueprint: Blueprint,
+  nodes: HostNode[],
+  nodeMounted: boolean[],
+  index: number
+): HostNode | null {
+  const parentIndex = blueprint.nodeParentIndex[index] ?? INVALID_INDEX;
+
+  for (let candidateIndex = index + 1; candidateIndex < nodes.length; candidateIndex += 1) {
+    if ((blueprint.nodeParentIndex[candidateIndex] ?? INVALID_INDEX) !== parentIndex) {
+      continue;
+    }
+
+    if (!nodeMounted[candidateIndex]) {
+      continue;
+    }
+
+    const anchor = nodes[candidateIndex];
+    if (anchor) {
+      return anchor;
+    }
+  }
+
+  return null;
+}
+
+function getRangeRootNodeIndexes(
+  blueprint: Blueprint,
+  startNode: number,
+  endNode: number
+): number[] {
+  const roots: number[] = [];
+
+  for (let index = startNode; index <= endNode; index += 1) {
+    const parentIndex = blueprint.nodeParentIndex[index];
+    if (parentIndex === undefined || parentIndex === INVALID_INDEX || parentIndex < startNode || parentIndex > endNode) {
+      roots.push(index);
+    }
+  }
+
+  return roots;
 }
 
 function createBlueprintNode(

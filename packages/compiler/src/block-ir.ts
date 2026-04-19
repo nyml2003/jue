@@ -3,6 +3,7 @@ import { createBlueprint } from "@jue/runtime-core";
 import {
   BindingOpcode,
   INVALID_INDEX,
+  RegionType,
   err,
   ok,
   type HostEventKey,
@@ -18,6 +19,7 @@ export interface BlockIR {
   readonly initialSignalValues?: readonly unknown[];
   readonly nodes: readonly IRNode[];
   readonly bindings: readonly IRBinding[];
+  readonly regions?: readonly IRRegion[];
 }
 
 export type IRNode =
@@ -57,6 +59,30 @@ export type IRBinding =
       readonly node: number;
       readonly event: HostEventKey;
       readonly handler: unknown;
+    };
+
+export type IRRegion =
+  | {
+      readonly kind: "conditional";
+      readonly anchorStartNode: number;
+      readonly anchorEndNode: number;
+      readonly branches: readonly {
+        readonly startNode: number;
+        readonly endNode: number;
+      }[];
+    }
+  | {
+      readonly kind: "nested-block";
+      readonly anchorStartNode: number;
+      readonly anchorEndNode: number;
+      readonly childBlockSlot: number;
+      readonly childBlueprintSlot: number;
+      readonly mountMode: "attach" | "replace";
+    }
+  | {
+      readonly kind: "keyed-list";
+      readonly anchorStartNode: number;
+      readonly anchorEndNode: number;
     };
 
 export interface LowerBlockIRError {
@@ -100,6 +126,17 @@ export function lowerBlockIRToBlueprint(
   const bindingArgU32: number[] = [];
   const bindingArgRef: unknown[] = [];
   const signalToBindings = new Map<number, number[]>();
+  const regions = block.regions ?? [];
+  const regionType = new Uint8Array(regions.length);
+  const regionAnchorStart = new Uint32Array(regions.length);
+  const regionAnchorEnd = new Uint32Array(regions.length);
+  const regionBranchRangeStart = new Uint32Array(regions.length);
+  const regionBranchRangeCount = new Uint32Array(regions.length);
+  const regionBranchNodeStart: number[] = [];
+  const regionBranchNodeEnd: number[] = [];
+  const regionNestedBlockSlot = createInvalidIndexTable(regions.length);
+  const regionNestedBlueprintSlot = createInvalidIndexTable(regions.length);
+  const regionNestedMountMode = new Uint8Array(regions.length);
 
   const nodeSlotById = new Map<number, number>();
   orderedNodes.forEach((node, index) => {
@@ -168,6 +205,94 @@ export function lowerBlockIRToBlueprint(
     }
   }
 
+  for (let regionSlot = 0; regionSlot < regions.length; regionSlot += 1) {
+    const region = regions[regionSlot];
+    if (!region) {
+      continue;
+    }
+
+    switch (region.kind) {
+      case "conditional": {
+        const startNode = getNodeSlot(nodeSlotById, region.anchorStartNode, "region anchor start", regionSlot);
+        if (!startNode.ok) {
+          return startNode;
+        }
+
+        const endNode = getNodeSlot(nodeSlotById, region.anchorEndNode, "region anchor end", regionSlot);
+        if (!endNode.ok) {
+          return endNode;
+        }
+
+        regionType[regionSlot] = RegionType.CONDITIONAL;
+        regionAnchorStart[regionSlot] = startNode.value;
+        regionAnchorEnd[regionSlot] = endNode.value;
+        regionBranchRangeStart[regionSlot] = regionBranchNodeStart.length;
+        regionBranchRangeCount[regionSlot] = region.branches.length;
+
+        for (const branch of region.branches) {
+          const branchStartNode = getNodeSlot(
+            nodeSlotById,
+            branch.startNode,
+            "conditional branch start",
+            regionSlot
+          );
+          if (!branchStartNode.ok) {
+            return branchStartNode;
+          }
+
+          const branchEndNode = getNodeSlot(
+            nodeSlotById,
+            branch.endNode,
+            "conditional branch end",
+            regionSlot
+          );
+          if (!branchEndNode.ok) {
+            return branchEndNode;
+          }
+
+          regionBranchNodeStart.push(branchStartNode.value);
+          regionBranchNodeEnd.push(branchEndNode.value);
+        }
+        break;
+      }
+      case "nested-block": {
+        const startNode = getNodeSlot(nodeSlotById, region.anchorStartNode, "region anchor start", regionSlot);
+        if (!startNode.ok) {
+          return startNode;
+        }
+
+        const endNode = getNodeSlot(nodeSlotById, region.anchorEndNode, "region anchor end", regionSlot);
+        if (!endNode.ok) {
+          return endNode;
+        }
+
+        regionType[regionSlot] = RegionType.NESTED_BLOCK;
+        regionAnchorStart[regionSlot] = startNode.value;
+        regionAnchorEnd[regionSlot] = endNode.value;
+        regionNestedBlockSlot[regionSlot] = region.childBlockSlot;
+        regionNestedBlueprintSlot[regionSlot] = region.childBlueprintSlot;
+        regionNestedMountMode[regionSlot] = region.mountMode === "replace" ? 1 : 0;
+        break;
+      }
+      case "keyed-list": {
+        const startNode = getNodeSlot(nodeSlotById, region.anchorStartNode, "region anchor start", regionSlot);
+        if (!startNode.ok) {
+          return startNode;
+        }
+
+        const endNode = getNodeSlot(nodeSlotById, region.anchorEndNode, "region anchor end", regionSlot);
+        if (!endNode.ok) {
+          return endNode;
+        }
+
+        regionType[regionSlot] = RegionType.KEYED_LIST;
+        regionAnchorStart[regionSlot] = startNode.value;
+        regionAnchorEnd[regionSlot] = endNode.value;
+        break;
+      }
+    }
+  }
+
   const {
     signalToBindingStart,
     signalToBindingCount,
@@ -185,9 +310,16 @@ export function lowerBlockIRToBlueprint(
     bindingDataIndex,
     bindingArgU32: Uint32Array.from(bindingArgU32),
     bindingArgRef,
-    regionType: new Uint8Array(0),
-    regionAnchorStart: new Uint32Array(0),
-    regionAnchorEnd: new Uint32Array(0),
+    regionType,
+    regionAnchorStart,
+    regionAnchorEnd,
+    regionBranchRangeStart,
+    regionBranchRangeCount,
+    regionBranchNodeStart: Uint32Array.from(regionBranchNodeStart),
+    regionBranchNodeEnd: Uint32Array.from(regionBranchNodeEnd),
+    regionNestedBlockSlot,
+    regionNestedBlueprintSlot,
+    regionNestedMountMode,
     signalToBindingStart,
     signalToBindingCount,
     signalToBindings: signalToBindingsTable
