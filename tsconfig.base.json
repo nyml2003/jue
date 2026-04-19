@@ -16,22 +16,21 @@
     "declarationMap": true,
     "sourceMap": true,
     "composite": true,
-    "baseUrl": ".",
     "paths": {
       "@jue/shared": [
-        "packages/shared/src/index.ts"
+        "./packages/shared/src/index.ts"
       ],
       "@jue/runtime-core": [
-        "packages/runtime-core/src/index.ts"
+        "./packages/runtime-core/src/index.ts"
       ],
       "@jue/compiler": [
-        "packages/compiler/src/index.ts"
+        "./packages/compiler/src/index.ts"
       ],
       "@jue/web": [
-        "packages/web/src/index.ts"
+        "./packages/web/src/index.ts"
       ],
       "@jue/native": [
-        "packages/native/src/index.ts"
+        "./packages/native/src/index.ts"
       ]
     }
   }

@@ -9,9 +9,15 @@ import type { Blueprint } from "./types";
 
 export interface CreateBlueprintInput {
   readonly nodeCount: number;
+  readonly nodeKind?: Uint8Array;
+  readonly nodePrimitiveRefIndex?: Uint32Array;
+  readonly nodeTextRefIndex?: Uint32Array;
+  readonly nodeParentIndex?: Uint32Array;
   readonly bindingOpcode: Uint8Array;
   readonly bindingNodeIndex: Uint32Array;
   readonly bindingDataIndex: Uint32Array;
+  readonly bindingArgU32?: Uint32Array;
+  readonly bindingArgRef?: readonly unknown[];
   readonly regionType: Uint8Array;
   readonly regionAnchorStart: Uint32Array;
   readonly regionAnchorEnd: Uint32Array;
@@ -28,6 +34,10 @@ export interface BlueprintError {
 export function createBlueprint(input: CreateBlueprintInput): Result<Blueprint, BlueprintError> {
   const {
     nodeCount,
+    nodeKind,
+    nodePrimitiveRefIndex,
+    nodeTextRefIndex,
+    nodeParentIndex,
     bindingOpcode,
     bindingNodeIndex,
     bindingDataIndex,
@@ -50,6 +60,23 @@ export function createBlueprint(input: CreateBlueprintInput): Result<Blueprint, 
     });
   }
 
+  const resolvedNodeKind = nodeKind ?? new Uint8Array(nodeCount);
+  const resolvedNodePrimitiveRefIndex = nodePrimitiveRefIndex ?? fillInvalidNodeTable(nodeCount);
+  const resolvedNodeTextRefIndex = nodeTextRefIndex ?? fillInvalidNodeTable(nodeCount);
+  const resolvedNodeParentIndex = nodeParentIndex ?? fillInvalidNodeTable(nodeCount);
+
+  if (
+    resolvedNodeKind.length !== nodeCount ||
+    resolvedNodePrimitiveRefIndex.length !== nodeCount ||
+    resolvedNodeTextRefIndex.length !== nodeCount ||
+    resolvedNodeParentIndex.length !== nodeCount
+  ) {
+    return err({
+      code: "INVALID_NODE_TABLE",
+      message: "node tables must have the same length as nodeCount."
+    });
+  }
+
   for (const nodeIndex of bindingNodeIndex) {
     if (nodeIndex !== INVALID_INDEX && nodeIndex >= nodeCount) {
       return err({
@@ -63,9 +90,15 @@ export function createBlueprint(input: CreateBlueprintInput): Result<Blueprint, 
     nodeCount,
     bindingCount: bindingOpcode.length,
     regionCount: regionType.length,
+    nodeKind: resolvedNodeKind,
+    nodePrimitiveRefIndex: resolvedNodePrimitiveRefIndex,
+    nodeTextRefIndex: resolvedNodeTextRefIndex,
+    nodeParentIndex: resolvedNodeParentIndex,
     bindingOpcode,
     bindingNodeIndex,
     bindingDataIndex,
+    bindingArgU32: input.bindingArgU32 ?? new Uint32Array(0),
+    bindingArgRef: input.bindingArgRef ?? [],
     regionType,
     regionAnchorStart,
     regionAnchorEnd,
@@ -80,9 +113,15 @@ export function createEmptyBlueprint(): Blueprint {
     nodeCount: 0,
     bindingCount: 0,
     regionCount: 0,
+    nodeKind: new Uint8Array(0),
+    nodePrimitiveRefIndex: new Uint32Array(0),
+    nodeTextRefIndex: new Uint32Array(0),
+    nodeParentIndex: new Uint32Array(0),
     bindingOpcode: new Uint8Array(0),
     bindingNodeIndex: new Uint32Array(0),
     bindingDataIndex: new Uint32Array(0),
+    bindingArgU32: new Uint32Array(0),
+    bindingArgRef: [],
     regionType: new Uint8Array(0),
     regionAnchorStart: new Uint32Array(0),
     regionAnchorEnd: new Uint32Array(0),
@@ -90,4 +129,10 @@ export function createEmptyBlueprint(): Blueprint {
     signalToBindingCount: new Uint32Array(0),
     signalToBindings: new Uint32Array(0)
   };
+}
+
+function fillInvalidNodeTable(nodeCount: number): Uint32Array {
+  const table = new Uint32Array(nodeCount);
+  table.fill(INVALID_INDEX);
+  return table;
 }

@@ -39,6 +39,8 @@ describe("@jue/runtime-core", () => {
     if (result.ok) {
       expect(result.value.bindingCount).toBe(1);
       expect(result.value.regionCount).toBe(1);
+      expect(result.value.bindingArgU32).toEqual(new Uint32Array(0));
+      expect(result.value.bindingArgRef).toEqual([]);
     }
   });
 
@@ -237,5 +239,30 @@ describe("@jue/runtime-core", () => {
     expect(instance.regionLifecycle[0]).toBe(RegionLifecycle.UNINITIALIZED);
     expect(instance.resourceStatus).toHaveLength(2);
     expect(instance.dirtyBindingBits).toHaveLength(1);
+  });
+
+  it("stores binding argument tables for prop-like bindings", () => {
+    const blueprintResult = createBlueprint({
+      nodeCount: 1,
+      bindingOpcode: new Uint8Array([BindingOpcode.PROP]),
+      bindingNodeIndex: new Uint32Array([0]),
+      bindingDataIndex: new Uint32Array([0]),
+      bindingArgU32: new Uint32Array([0, 0]),
+      bindingArgRef: ["title"],
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0),
+      signalToBindingStart: new Uint32Array([0]),
+      signalToBindingCount: new Uint32Array([1]),
+      signalToBindings: new Uint32Array([0])
+    });
+
+    expect(blueprintResult.ok).toBe(true);
+    if (!blueprintResult.ok) {
+      return;
+    }
+
+    expect(blueprintResult.value.bindingArgU32).toEqual(new Uint32Array([0, 0]));
+    expect(blueprintResult.value.bindingArgRef).toEqual(["title"]);
   });
 });

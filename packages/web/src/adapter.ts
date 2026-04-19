@@ -15,6 +15,8 @@ function notImplemented(method: string): Result<never, HostAdapterError> {
 }
 
 export class WebHostAdapter implements HostAdapter {
+  readonly #eventListeners = new WeakMap<Node, Map<HostEventKey, EventListener>>();
+
   createNode(_type: HostPrimitive, _propsIndex: number): Result<HostNode, HostAdapterError> {
     return createElementNode(_type);
   }
@@ -79,11 +81,58 @@ export class WebHostAdapter implements HostAdapter {
   }
 
   setProp(_node: HostNode, _prop: HostPropKey, _value: unknown): Result<void, HostAdapterError> {
-    return notImplemented("setProp");
+    const nodeResult = toDomNode(_node, "setProp.node");
+    if (!nodeResult.ok) {
+      return nodeResult;
+    }
+
+    if (!(nodeResult.value instanceof Element)) {
+      return err({
+        code: "INVALID_PROP_TARGET",
+        message: "WebHostAdapter.setProp() expected an Element-compatible host node."
+      });
+    }
+
+    if (_value === null || _value === undefined || _value === false) {
+      nodeResult.value.removeAttribute(_prop);
+
+      if (_prop in nodeResult.value) {
+        Reflect.set(nodeResult.value, _prop, _prop === "value" ? "" : null);
+      }
+
+      return { ok: true, value: undefined, error: null };
+    }
+
+    if (_prop in nodeResult.value) {
+      Reflect.set(nodeResult.value, _prop, _value);
+    } else {
+      nodeResult.value.setAttribute(_prop, String(_value));
+    }
+
+    return { ok: true, value: undefined, error: null };
   }
 
   setStyle(_node: HostNode, _styleKey: HostStyleKey, _value: unknown): Result<void, HostAdapterError> {
-    return notImplemented("setStyle");
+    const nodeResult = toDomNode(_node, "setStyle.node");
+    if (!nodeResult.ok) {
+      return nodeResult;
+    }
+
+    if (!(nodeResult.value instanceof HTMLElement)) {
+      return err({
+        code: "INVALID_STYLE_TARGET",
+        message: "WebHostAdapter.setStyle() expected an HTMLElement-compatible host node."
+      });
+    }
+
+    if (_value === null || _value === undefined || _value === false) {
+      nodeResult.value.style.removeProperty(toCssPropertyName(_styleKey));
+      return { ok: true, value: undefined, error: null };
+    }
+
+    const styleValue = typeof _value === "number" ? String(_value) : String(_value);
+    nodeResult.value.style.setProperty(toCssPropertyName(_styleKey), styleValue);
+    return { ok: true, value: undefined, error: null };
   }
 
   setEvent(
@@ -91,7 +140,38 @@ export class WebHostAdapter implements HostAdapter {
     _eventKey: HostEventKey,
     _handler: HostEventHandler | null
   ): Result<void, HostAdapterError> {
-    return notImplemented("setEvent");
+    const nodeResult = toDomNode(_node, "setEvent.node");
+    if (!nodeResult.ok) {
+      return nodeResult;
+    }
+
+    const eventName = toDomEventName(_eventKey);
+    if (eventName === null) {
+      return err({
+        code: "UNSUPPORTED_EVENT_KEY",
+        message: `WebHostAdapter.setEvent() does not support event key ${_eventKey}.`
+      });
+    }
+
+    const listenerMap = getOrCreateListenerMap(this.#eventListeners, nodeResult.value);
+    const previousListener = listenerMap.get(_eventKey);
+
+    if (previousListener) {
+      nodeResult.value.removeEventListener(eventName, previousListener);
+      listenerMap.delete(_eventKey);
+    }
+
+    if (_handler === null) {
+      return { ok: true, value: undefined, error: null };
+    }
+
+    const nextListener: EventListener = nativeEvent => {
+      _handler(normalizeHostEvent(nativeEvent));
+    };
+
+    listenerMap.set(_eventKey, nextListener);
+    nodeResult.value.addEventListener(eventName, nextListener);
+    return { ok: true, value: undefined, error: null };
   }
 }
 
@@ -143,4 +223,57 @@ function toDomNode(
     code: "INVALID_HOST_NODE",
     message: `WebHostAdapter.${method}() expected a DOM Node-compatible host reference.`
   });
+}
+
+function toCssPropertyName(styleKey: HostStyleKey): string {
+  return styleKey.startsWith("--")
+    ? styleKey
+    : styleKey.replaceAll(/[A-Z]/g, match => `-${match.toLowerCase()}`);
+}
+
+function toDomEventName(eventKey: HostEventKey): string | null {
+  switch (eventKey) {
+    case "onPress":
+      return "click";
+    case "onInput":
+      return "input";
+    case "onFocus":
+      return "focus";
+    case "onBlur":
+      return "blur";
+    case "onScroll":
+      return "scroll";
+    default:
+      return null;
+  }
+}
+
+function getOrCreateListenerMap(
+  eventListeners: WeakMap<Node, Map<HostEventKey, EventListener>>,
+  node: Node
+): Map<HostEventKey, EventListener> {
+  const existing = eventListeners.get(node);
+  if (existing) {
+    return existing;
+  }
+
+  const created = new Map<HostEventKey, EventListener>();
+  eventListeners.set(node, created);
+  return created;
+}
+
+function normalizeHostEvent(nativeEvent: Event) {
+  const currentTarget = nativeEvent.currentTarget;
+  const target = nativeEvent.target;
+  const value = currentTarget instanceof HTMLInputElement || currentTarget instanceof HTMLTextAreaElement
+    ? currentTarget.value
+    : undefined;
+
+  return {
+    type: nativeEvent.type,
+    target,
+    currentTarget,
+    value,
+    nativeEvent
+  };
 }

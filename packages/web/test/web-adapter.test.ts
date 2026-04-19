@@ -6,6 +6,7 @@ import {
   createBlockInstance,
   createBlueprint,
   createSchedulerState,
+  enqueueSchedulerSlot,
   flushBindingQueue,
   type HostNode,
   scheduleSignalWrite
@@ -169,5 +170,205 @@ describe("@jue/web", () => {
         message: "mount() expected a DOM Node-compatible root."
       }
     });
+  });
+
+  it("flushes a prop binding to a DOM element", () => {
+    const adapter = createWebHostAdapter();
+    const elementResult = adapter.createNode("View", 0);
+
+    expect(elementResult.ok).toBe(true);
+    if (!elementResult.ok) {
+      return;
+    }
+
+    const root = document.createElement("div");
+    const insertResult = adapter.insert(root as unknown as HostNode, elementResult.value, null);
+    expect(insertResult).toEqual({
+      ok: true,
+      value: undefined,
+      error: null
+    });
+
+    const blueprintResult = createBlueprint({
+      nodeCount: 1,
+      bindingOpcode: new Uint8Array([BindingOpcode.PROP]),
+      bindingNodeIndex: new Uint32Array([0]),
+      bindingDataIndex: new Uint32Array([0]),
+      bindingArgU32: new Uint32Array([0, 0]),
+      bindingArgRef: ["title"],
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0),
+      signalToBindingStart: new Uint32Array([0]),
+      signalToBindingCount: new Uint32Array([1]),
+      signalToBindings: new Uint32Array([0])
+    });
+
+    expect(blueprintResult.ok).toBe(true);
+    if (!blueprintResult.ok) {
+      return;
+    }
+
+    const instance = createBlockInstance(blueprintResult.value, {
+      signalCount: 1,
+      nodes: [elementResult.value]
+    });
+    const scheduler = createSchedulerState();
+
+    expect(scheduleSignalWrite(instance, scheduler, Lane.VISIBLE_UPDATE, 0, "hello-title")).toEqual({
+      ok: true,
+      value: {
+        changed: true,
+        enqueuedBindingCount: 1
+      },
+      error: null
+    });
+
+    expect(flushBindingQueue(instance, scheduler, adapter)).toEqual({
+      ok: true,
+      value: {
+        batchId: 1,
+        flushedBindingCount: 1
+      },
+      error: null
+    });
+
+    const domElement = root.firstChild as HTMLDivElement | null;
+    expect(domElement?.title).toBe("hello-title");
+  });
+
+  it("flushes a style binding to a DOM element", () => {
+    const adapter = createWebHostAdapter();
+    const elementResult = adapter.createNode("View", 0);
+
+    expect(elementResult.ok).toBe(true);
+    if (!elementResult.ok) {
+      return;
+    }
+
+    const root = document.createElement("div");
+    const insertResult = adapter.insert(root as unknown as HostNode, elementResult.value, null);
+    expect(insertResult).toEqual({
+      ok: true,
+      value: undefined,
+      error: null
+    });
+
+    const blueprintResult = createBlueprint({
+      nodeCount: 1,
+      bindingOpcode: new Uint8Array([BindingOpcode.STYLE]),
+      bindingNodeIndex: new Uint32Array([0]),
+      bindingDataIndex: new Uint32Array([0]),
+      bindingArgU32: new Uint32Array([0, 0]),
+      bindingArgRef: ["backgroundColor"],
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0),
+      signalToBindingStart: new Uint32Array([0]),
+      signalToBindingCount: new Uint32Array([1]),
+      signalToBindings: new Uint32Array([0])
+    });
+
+    expect(blueprintResult.ok).toBe(true);
+    if (!blueprintResult.ok) {
+      return;
+    }
+
+    const instance = createBlockInstance(blueprintResult.value, {
+      signalCount: 1,
+      nodes: [elementResult.value]
+    });
+    const scheduler = createSchedulerState();
+
+    expect(scheduleSignalWrite(instance, scheduler, Lane.VISIBLE_UPDATE, 0, "rgb(255, 0, 0)")).toEqual({
+      ok: true,
+      value: {
+        changed: true,
+        enqueuedBindingCount: 1
+      },
+      error: null
+    });
+
+    expect(flushBindingQueue(instance, scheduler, adapter)).toEqual({
+      ok: true,
+      value: {
+        batchId: 1,
+        flushedBindingCount: 1
+      },
+      error: null
+    });
+
+    const domElement = root.firstChild as HTMLDivElement | null;
+    expect(domElement?.style.backgroundColor).toBe("rgb(255, 0, 0)");
+  });
+
+  it("flushes an event binding and routes clicks through the web adapter", () => {
+    const adapter = createWebHostAdapter();
+    const elementResult = adapter.createNode("Button", 0);
+
+    expect(elementResult.ok).toBe(true);
+    if (!elementResult.ok) {
+      return;
+    }
+
+    const root = document.createElement("div");
+    const insertResult = adapter.insert(root as unknown as HostNode, elementResult.value, null);
+    expect(insertResult).toEqual({
+      ok: true,
+      value: undefined,
+      error: null
+    });
+
+    let pressed = 0;
+    let observedEventType = "";
+
+    const blueprintResult = createBlueprint({
+      nodeCount: 1,
+      bindingOpcode: new Uint8Array([BindingOpcode.EVENT]),
+      bindingNodeIndex: new Uint32Array([0]),
+      bindingDataIndex: new Uint32Array([0]),
+      bindingArgU32: new Uint32Array([0, 1]),
+      bindingArgRef: [
+        "onPress",
+        (event: { type: string }) => {
+          pressed += 1;
+          observedEventType = event.type;
+        }
+      ],
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0),
+      signalToBindingStart: new Uint32Array(0),
+      signalToBindingCount: new Uint32Array(0),
+      signalToBindings: new Uint32Array(0)
+    });
+
+    expect(blueprintResult.ok).toBe(true);
+    if (!blueprintResult.ok) {
+      return;
+    }
+
+    const instance = createBlockInstance(blueprintResult.value, {
+      signalCount: 0,
+      nodes: [elementResult.value]
+    });
+    const scheduler = createSchedulerState();
+
+    enqueueSchedulerSlot(scheduler, Lane.VISIBLE_UPDATE, "binding", 0);
+
+    expect(flushBindingQueue(instance, scheduler, adapter)).toEqual({
+      ok: true,
+      value: {
+        batchId: 1,
+        flushedBindingCount: 1
+      },
+      error: null
+    });
+
+    const domElement = root.firstChild as HTMLButtonElement | null;
+    domElement?.click();
+
+    expect(pressed).toBe(1);
+    expect(observedEventType).toBe("click");
   });
 });

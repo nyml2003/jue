@@ -19,9 +19,15 @@ export interface Blueprint {
   readonly nodeCount: number;
   readonly bindingCount: number;
   readonly regionCount: number;
+  readonly nodeKind: Uint8Array;
+  readonly nodePrimitiveRefIndex: Uint32Array;
+  readonly nodeTextRefIndex: Uint32Array;
+  readonly nodeParentIndex: Uint32Array;
   readonly bindingOpcode: Uint8Array;
   readonly bindingNodeIndex: Uint32Array;
   readonly bindingDataIndex: Uint32Array;
+  readonly bindingArgU32: Uint32Array;
+  readonly bindingArgRef: readonly unknown[];
   readonly regionType: Uint8Array;
   readonly regionAnchorStart: Uint32Array;
   readonly regionAnchorEnd: Uint32Array;
