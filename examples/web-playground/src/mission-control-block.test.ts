@@ -59,11 +59,16 @@ describe("@jue/web-playground mission-control-block", () => {
     buttons[5]?.click();
     expect(root.textContent).toContain("Nested block attached.");
     expect(root.textContent).toContain("nested lifecycle: active");
-    expect(root.textContent).toContain("nested mounted: block 7 / blueprint 11");
+    expect(root.textContent).toContain("nested mounted: block 7 / blueprint 0");
+    expect(root.textContent).toContain("Child block A");
+    expect(root.textContent).toContain("Mounted through web region controller.");
 
     buttons[6]?.click();
     expect(root.textContent).toContain("Nested block replaced with block 13.");
-    expect(root.textContent).toContain("nested mounted: block 13 / blueprint 17");
+    expect(root.textContent).toContain("nested mounted: block 13 / blueprint 1");
+    expect(root.textContent).toContain("Child block B");
+    expect(root.textContent).toContain("Replacement disposes the old child tree.");
+    expect(root.textContent).not.toContain("Child block A");
 
     if (input) {
       input.value = "Route async resources through scheduler.";
@@ -85,6 +90,7 @@ describe("@jue/web-playground mission-control-block", () => {
     expect(root.textContent).toContain("Nested block detached.");
     expect(root.textContent).toContain("nested lifecycle: inactive");
     expect(root.textContent).toContain("nested mounted: none");
+    expect(root.textContent).not.toContain("Child block B");
 
     buttons[1]?.click();
     expect(root.textContent).toContain("42");

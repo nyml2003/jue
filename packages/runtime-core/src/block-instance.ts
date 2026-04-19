@@ -548,6 +548,18 @@ export function completeNestedBlockReplace(instance: BlockInstance, regionSlot: 
   return true;
 }
 
+export function cancelNestedBlockReplace(instance: BlockInstance, regionSlot: number): boolean {
+  const lifecycle = instance.regionLifecycle[regionSlot];
+  if (lifecycle !== RegionLifecycle.UPDATING) {
+    return false;
+  }
+
+  instance.regionNestedTargetBlockSlot[regionSlot] = INVALID_STATE;
+  instance.regionNestedTargetBlueprintSlot[regionSlot] = INVALID_STATE;
+  instance.regionLifecycle[regionSlot] = RegionLifecycle.ACTIVE;
+  return true;
+}
+
 export function getNestedBlockRegionMountedState(
   instance: BlockInstance,
   regionSlot: number
@@ -607,16 +619,22 @@ export function beginKeyedListReconcile(
     return false;
   }
 
+  const payloadStart = regionSlot * 8;
+  const payloadCapacity = instance.regionKeyedListPayloadKind.length - payloadStart;
+  if (payload.length > payloadCapacity) {
+    return false;
+  }
+
   instance.regionLifecycle[regionSlot] = RegionLifecycle.UPDATING;
   instance.regionKeyedListReconcileStart[regionSlot] = reconcileStart;
   instance.regionKeyedListReconcileCount[regionSlot] = reconcileCount;
-  instance.regionKeyedListPayloadStart[regionSlot] = regionSlot * 8;
+  instance.regionKeyedListPayloadStart[regionSlot] = payloadStart;
   instance.regionKeyedListPayloadCount[regionSlot] = payload.length;
 
   for (let index = 0; index < payload.length; index += 1) {
-    const payloadSlot = regionSlot * 8 + index;
+    const payloadSlot = payloadStart + index;
     const item = payload[index];
-    if (!item || payloadSlot >= instance.regionKeyedListPayloadKind.length) {
+    if (!item) {
       return false;
     }
 
@@ -657,6 +675,19 @@ export function completeKeyedListReconcile(
   }
 
   instance.regionKeyedListItemCount[regionSlot] = nextItemCount;
+  instance.regionKeyedListReconcileStart[regionSlot] = 0;
+  instance.regionKeyedListReconcileCount[regionSlot] = 0;
+  clearKeyedListPayload(instance, regionSlot);
+  instance.regionLifecycle[regionSlot] = RegionLifecycle.ACTIVE;
+  return true;
+}
+
+export function cancelKeyedListReconcile(instance: BlockInstance, regionSlot: number): boolean {
+  const lifecycle = instance.regionLifecycle[regionSlot];
+  if (lifecycle !== RegionLifecycle.UPDATING) {
+    return false;
+  }
+
   instance.regionKeyedListReconcileStart[regionSlot] = 0;
   instance.regionKeyedListReconcileCount[regionSlot] = 0;
   clearKeyedListPayload(instance, regionSlot);

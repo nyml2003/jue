@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
-import { BindingOpcode, INVALID_INDEX } from "@jue/shared";
+import { BindingOpcode, INVALID_INDEX, RegionLifecycle } from "@jue/shared";
+import { createBlueprintBuilder } from "@jue/compiler";
 import { createBlueprint } from "@jue/runtime-core";
 import { describe, expect, it } from "vitest";
 
@@ -64,4 +65,181 @@ describe("@jue/web mountTree", () => {
     button?.click();
     expect(pressCount).toBe(1);
   });
+
+  it("mounts, replaces, and detaches nested block content inside region anchors", () => {
+    const root = document.createElement("div");
+    const parentBuilder = createBlueprintBuilder();
+    const parent = parentBuilder.element("View");
+    const before = parentBuilder.text("before[");
+    const end = parentBuilder.text("]after");
+    expect(parentBuilder.append(parent, before).ok).toBe(true);
+    expect(parentBuilder.append(parent, end).ok).toBe(true);
+    parentBuilder.defineNestedBlockRegion({
+      anchorStartNode: before,
+      anchorEndNode: end,
+      childBlockSlot: 0,
+      childBlueprintSlot: 0,
+      mountMode: "attach"
+    });
+
+    const parentLowered = parentBuilder.buildBlueprint();
+    const childA = createTextBlockBlueprint("child A");
+    const childB = createTextBlockBlueprint("child B");
+
+    expect(parentLowered.ok).toBe(true);
+    expect(childA.ok).toBe(true);
+    expect(childB.ok).toBe(true);
+    if (!parentLowered.ok || !childA.ok || !childB.ok) {
+      return;
+    }
+
+    const mountedResult = mountTree({
+      blueprint: parentLowered.value.blueprint,
+      root,
+      signalCount: parentLowered.value.signalCount,
+      nestedBlueprints: [
+        childA.value,
+        childB.value
+      ]
+    });
+
+    expect(mountedResult.ok).toBe(true);
+    if (!mountedResult.ok) {
+      return;
+    }
+
+    expect(root.textContent).toBe("before[]after");
+
+    const attachResult = mountedResult.value.regions.nested(0).attach();
+    expect(attachResult.ok).toBe(true);
+    expect(root.textContent).toBe("before[child A]after");
+
+    const replaceResult = mountedResult.value.regions.nested(0).replace(1, 1);
+    expect(replaceResult.ok).toBe(true);
+    expect(root.textContent).toBe("before[child B]after");
+
+    const detachResult = mountedResult.value.regions.nested(0).detach();
+    expect(detachResult.ok).toBe(true);
+    expect(root.textContent).toBe("before[]after");
+  });
+
+  it("attaches, reconciles, moves, and clears keyed list items inside region anchors", () => {
+    const root = document.createElement("div");
+    const parentBuilder = createBlueprintBuilder();
+    const parent = parentBuilder.element("View");
+    const before = parentBuilder.text("before(");
+    const end = parentBuilder.text(")after");
+    expect(parentBuilder.append(parent, before).ok).toBe(true);
+    expect(parentBuilder.append(parent, end).ok).toBe(true);
+    parentBuilder.defineKeyedListRegion({
+      anchorStartNode: before,
+      anchorEndNode: end
+    });
+
+    const parentLowered = parentBuilder.buildBlueprint();
+    expect(parentLowered.ok).toBe(true);
+    if (!parentLowered.ok) {
+      return;
+    }
+
+    const mountedResult = mountTree({
+      blueprint: parentLowered.value.blueprint,
+      root,
+      signalCount: parentLowered.value.signalCount
+    });
+
+    expect(mountedResult.ok).toBe(true);
+    if (!mountedResult.ok) {
+      return;
+    }
+
+    const list = mountedResult.value.regions.keyedList(0);
+    const attachResult = list.attach([
+      keyedTextItem("a", "A"),
+      keyedTextItem("b", "B")
+    ]);
+
+    expect(attachResult.ok).toBe(true);
+    expect(root.textContent).toBe("before(AB)after");
+
+    const reconcileResult = list.reconcile([
+      keyedTextItem("b", "B"),
+      keyedTextItem("c", "C"),
+      keyedTextItem("a", "A")
+    ]);
+
+    expect(reconcileResult.ok).toBe(true);
+    expect(root.textContent).toBe("before(BCA)after");
+
+    const removeResult = list.reconcile([
+      keyedTextItem("c", "C")
+    ]);
+
+    expect(removeResult.ok).toBe(true);
+    expect(root.textContent).toBe("before(C)after");
+
+    const clearResult = list.clear();
+    expect(clearResult.ok).toBe(true);
+    expect(root.textContent).toBe("before()after");
+  });
+
+  it("rejects duplicate keyed list keys before mutating region state", () => {
+    const root = document.createElement("div");
+    const parentBuilder = createBlueprintBuilder();
+    const parent = parentBuilder.element("View");
+    const before = parentBuilder.text("[");
+    const end = parentBuilder.text("]");
+    expect(parentBuilder.append(parent, before).ok).toBe(true);
+    expect(parentBuilder.append(parent, end).ok).toBe(true);
+    parentBuilder.defineKeyedListRegion({
+      anchorStartNode: before,
+      anchorEndNode: end
+    });
+
+    const parentLowered = parentBuilder.buildBlueprint();
+    expect(parentLowered.ok).toBe(true);
+    if (!parentLowered.ok) {
+      return;
+    }
+
+    const mountedResult = mountTree({
+      blueprint: parentLowered.value.blueprint,
+      root,
+      signalCount: parentLowered.value.signalCount
+    });
+
+    expect(mountedResult.ok).toBe(true);
+    if (!mountedResult.ok) {
+      return;
+    }
+
+    const attachResult = mountedResult.value.regions.keyedList(0).attach([
+      keyedTextItem("same", "A"),
+      keyedTextItem("same", "B")
+    ]);
+
+    expect(attachResult.ok).toBe(false);
+    expect(root.textContent).toBe("[]");
+    expect(mountedResult.value.instance.regionLifecycle[0]).toBe(RegionLifecycle.INACTIVE);
+  });
 });
+
+function keyedTextItem(key: string, text: string) {
+  const block = createTextBlockBlueprint(text);
+  if (!block.ok) {
+    throw new Error(block.error.message);
+  }
+
+  return {
+    key,
+    ...block.value
+  };
+}
+
+function createTextBlockBlueprint(text: string) {
+  const builder = createBlueprintBuilder();
+  const root = builder.element("View");
+  const textNode = builder.text(text);
+  expect(builder.append(root, textNode).ok).toBe(true);
+  return builder.buildBlueprint();
+}

@@ -740,4 +740,39 @@ describe("@jue/runtime-core", () => {
     });
     expect(instance.regionLifecycle[0]).toBe(RegionLifecycle.INACTIVE);
   });
+
+  it("rejects keyed list reconcile payload overflow without entering updating state", () => {
+    const blueprintResult = createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      regionType: new Uint8Array([RegionType.KEYED_LIST]),
+      regionAnchorStart: new Uint32Array([INVALID_INDEX]),
+      regionAnchorEnd: new Uint32Array([INVALID_INDEX])
+    });
+
+    expect(blueprintResult.ok).toBe(true);
+    if (!blueprintResult.ok) {
+      return;
+    }
+
+    const instance = createBlockInstance(blueprintResult.value);
+    expect(initializeRegionSlot(instance, 0)).toBe(true);
+    expect(attachKeyedListRegion(instance, 0, 1)).toBe(true);
+
+    const payload = Array.from({ length: 9 }, (_, index) => ({
+      kind: "insert" as const,
+      index
+    }));
+
+    expect(beginKeyedListReconcile(instance, 0, 0, payload.length, payload)).toBe(false);
+    expect(getKeyedListRegionState(instance, 0)).toEqual({
+      itemCount: 1,
+      reconcileStart: 0,
+      reconcileCount: 0,
+      payloadCount: 0
+    });
+    expect(instance.regionLifecycle[0]).toBe(RegionLifecycle.ACTIVE);
+  });
 });

@@ -132,6 +132,15 @@ region 至少分三类：
 - 只替换这个 region 相关的局部依赖
 - 不重算父 block 的整张依赖表
 
+当前实现状态：
+
+- `CONDITIONAL` 已有真实内容控制。`mountTree()` 初始化 region slot 后，会先卸载所有 conditional branch 静态内容，后续通过 `regions.conditional(slot).attach()`、`switchTo()`、`clear()` 控制真实 DOM range。
+- `NESTED_BLOCK` 已有真实 child tree 挂载。`regions.nested(slot).attach()` 会按 `regionNestedBlueprintSlot` 挂载子 Blueprint；`replace(blockSlot, blueprintSlot)` 会挂新 child tree、定位到 region anchor 内，再提交 runtime state；`detach()` 会释放 child tree。
+- `KEYED_LIST` 已有最小真实 reconcile。`regions.keyedList(slot).attach()` 挂载 item child tree；`reconcile()` 根据 key 做 insert / remove / move；`clear()` 释放所有 item tree。
+- `VIRTUAL_LIST` 尚未实现。长列表滚动复用不能用普通 `KEYED_LIST` 代替。
+
+当前 web controller 采用“先验证/挂载新内容，再提交稳定状态”的方向，避免 DOM 成功但 region state 失败，或 region state 成功但 DOM 半挂载。
+
 ### Virtual List Region
 
 `virtual list region` 不是简单的“少渲染几个节点”。
@@ -291,5 +300,8 @@ flush 时尽量顺序扫描：
 - `STYLE`
 - `EVENT`
 - 最小静态节点表挂载
+- `CONDITIONAL` 真实 branch range attach / switch / clear
+- `NESTED_BLOCK` 真实 child tree attach / replace / detach
+- `KEYED_LIST` 最小真实 keyed item attach / reconcile / clear
 
 并且这些能力已经可以从 `BlockIR` 经 lowering 生成 `Blueprint` 后被 runtime 消费。

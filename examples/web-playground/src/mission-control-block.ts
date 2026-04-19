@@ -1,13 +1,7 @@
 import {
-  attachNestedBlockRegion,
-  beginNestedBlockReplace,
-  completeNestedBlockReplace,
-  detachNestedBlockRegion,
-  getConditionalRegionBranchRange,
   getConditionalRegionMountedRange,
   getConditionalRegionMountedBranch,
   getNestedBlockRegionMountedState,
-  initializeRegionSlot,
   type FlushBindingsResult
 } from "@jue/runtime-core";
 import { createBlueprintBuilder } from "@jue/compiler";
@@ -75,8 +69,6 @@ export function mountMissionControlBlock(root: Node): Result<MountedMissionContr
     regionLog: INITIAL_REGION_LOG
   };
   let mountedTreeRef: MountedTree | null = null;
-  let nextNestedBlockSlot = 13;
-  let nextNestedBlueprintSlot = 17;
 
   const syncAll = (nextState: MissionState) => {
     state = nextState;
@@ -84,6 +76,7 @@ export function mountMissionControlBlock(root: Node): Result<MountedMissionContr
   };
 
   const conditionalRegion = () => mountedTreeRef?.regions.conditional(CONDITIONAL_REGION_SLOT) ?? null;
+  const nestedRegion = () => mountedTreeRef?.regions.nested(NESTED_REGION_SLOT) ?? null;
 
   const logRegionAction = (message: string) => syncAll({
     ...state,
@@ -164,8 +157,8 @@ export function mountMissionControlBlock(root: Node): Result<MountedMissionContr
       return;
     }
 
-    const attached = attachNestedBlockRegion(mountedTreeRef.instance, NESTED_REGION_SLOT);
-    void logRegionAction(attached
+    const attached = nestedRegion()?.attach() ?? null;
+    void logRegionAction(attached?.ok
       ? "Nested block attached."
       : "Nested block attach rejected.");
   };
@@ -175,24 +168,9 @@ export function mountMissionControlBlock(root: Node): Result<MountedMissionContr
       return;
     }
 
-    if (!beginNestedBlockReplace(
-      mountedTreeRef.instance,
-      NESTED_REGION_SLOT,
-      nextNestedBlockSlot,
-      nextNestedBlueprintSlot
-    )) {
-      void logRegionAction("Nested block replace rejected.");
-      return;
-    }
-
-    const replaced = completeNestedBlockReplace(mountedTreeRef.instance, NESTED_REGION_SLOT);
-    if (replaced) {
-      nextNestedBlockSlot += 2;
-      nextNestedBlueprintSlot += 2;
-    }
-
-    void logRegionAction(replaced
-      ? `Nested block replaced with block ${nextNestedBlockSlot - 2}.`
+    const replaced = nestedRegion()?.replace(13, 1) ?? null;
+    void logRegionAction(replaced?.ok
+      ? "Nested block replaced with block 13."
       : "Nested block replace failed.");
   };
 
@@ -201,8 +179,8 @@ export function mountMissionControlBlock(root: Node): Result<MountedMissionContr
       return;
     }
 
-    const detached = detachNestedBlockRegion(mountedTreeRef.instance, NESTED_REGION_SLOT);
-    void logRegionAction(detached
+    const detached = nestedRegion()?.detach() ?? null;
+    void logRegionAction(detached?.ok
       ? "Nested block detached."
       : "Nested block detach rejected.");
   };
@@ -227,7 +205,8 @@ export function mountMissionControlBlock(root: Node): Result<MountedMissionContr
     blueprint: loweredResult.value.blueprint,
     root,
     signalCount: loweredResult.value.signalCount,
-    initialSignalValues: loweredResult.value.initialSignalValues
+    initialSignalValues: loweredResult.value.initialSignalValues,
+    nestedBlueprints: createMissionNestedBlueprints()
   });
 
   if (!mountedTreeResult.ok) {
@@ -242,40 +221,9 @@ export function mountMissionControlBlock(root: Node): Result<MountedMissionContr
     return err(initialFlushResult.error);
   }
 
-  if (!initializeRegionSlot(mountedTree.instance, CONDITIONAL_REGION_SLOT)) {
-    return err({
-      code: "MISSION_REGION_INIT_FAILED",
-      message: "Failed to initialize the conditional region slot."
-    });
-  }
-
-  if (!initializeRegionSlot(mountedTree.instance, NESTED_REGION_SLOT)) {
-    return err({
-      code: "MISSION_REGION_INIT_FAILED",
-      message: "Failed to initialize the nested block region slot."
-    });
-  }
-
   const syncResult = writeMissionSignals(mountedTreeRef, state);
   if (!syncResult.ok) {
     return syncResult;
-  }
-
-  const branchCount = mountedTree.instance.blueprint.regionBranchRangeCount[CONDITIONAL_REGION_SLOT] ?? 0;
-  for (let branchIndex = 0; branchIndex < branchCount; branchIndex += 1) {
-    const branchRange = getConditionalRegionBranchRange(
-      mountedTree.instance,
-      CONDITIONAL_REGION_SLOT,
-      branchIndex
-    );
-    if (branchRange === null) {
-      continue;
-    }
-
-    const disposeResult = mountedTree.disposeRange(branchRange.startNode, branchRange.endNode);
-    if (!disposeResult.ok) {
-      return err(disposeResult.error);
-    }
   }
 
   return ok({
@@ -354,8 +302,8 @@ export function mountMissionControlBlock(root: Node): Result<MountedMissionContr
         });
       }
 
-      const attached = attachNestedBlockRegion(mountedTreeRef.instance, NESTED_REGION_SLOT);
-      return logRegionAction(attached
+      const attached = mountedTreeRef.regions.nested(NESTED_REGION_SLOT).attach();
+      return logRegionAction(attached.ok
         ? "Nested block attached."
         : "Nested block attach rejected.");
     },
@@ -367,23 +315,9 @@ export function mountMissionControlBlock(root: Node): Result<MountedMissionContr
         });
       }
 
-      if (!beginNestedBlockReplace(
-        mountedTreeRef.instance,
-        NESTED_REGION_SLOT,
-        nextNestedBlockSlot,
-        nextNestedBlueprintSlot
-      )) {
-        return logRegionAction("Nested block replace rejected.");
-      }
-
-      const replaced = completeNestedBlockReplace(mountedTreeRef.instance, NESTED_REGION_SLOT);
-      if (replaced) {
-        nextNestedBlockSlot += 2;
-        nextNestedBlueprintSlot += 2;
-      }
-
-      return logRegionAction(replaced
-        ? `Nested block replaced with block ${nextNestedBlockSlot - 2}.`
+      const replaced = mountedTreeRef.regions.nested(NESTED_REGION_SLOT).replace(13, 1);
+      return logRegionAction(replaced.ok
+        ? "Nested block replaced with block 13."
         : "Nested block replace failed.");
     },
     detachChildBlock() {
@@ -394,8 +328,8 @@ export function mountMissionControlBlock(root: Node): Result<MountedMissionContr
         });
       }
 
-      const detached = detachNestedBlockRegion(mountedTreeRef.instance, NESTED_REGION_SLOT);
-      return logRegionAction(detached
+      const detached = mountedTreeRef.regions.nested(NESTED_REGION_SLOT).detach();
+      return logRegionAction(detached.ok
         ? "Nested block detached."
         : "Nested block detach rejected.");
     },
@@ -571,11 +505,38 @@ function createMissionControlBlueprintBuilder(handlers: {
     anchorStartNode: nestedLifecycle.item,
     anchorEndNode: nestedMounted.item,
     childBlockSlot: 7,
-    childBlueprintSlot: 11,
+    childBlueprintSlot: 0,
     mountMode: "attach"
   });
 
   return builder;
+}
+
+function createMissionNestedBlueprints() {
+  return [
+    createMissionNestedBlueprint("Child block A", "Mounted through web region controller."),
+    createMissionNestedBlueprint("Child block B", "Replacement disposes the old child tree.")
+  ];
+}
+
+function createMissionNestedBlueprint(title: string, body: string) {
+  const builder = createBlueprintBuilder();
+  builder.setSignalCount(0);
+
+  const card = builder.element("View");
+  appendTextElement(builder, card, title);
+  appendTextElement(builder, card, body);
+
+  const lowered = builder.buildBlueprint();
+  if (!lowered.ok) {
+    throw new Error(`[mission-control-block] ${lowered.error.code}: ${lowered.error.message}`);
+  }
+
+  return {
+    blueprint: lowered.value.blueprint,
+    signalCount: lowered.value.signalCount,
+    initialSignalValues: lowered.value.initialSignalValues
+  };
 }
 
 function appendTextElement(

@@ -24,6 +24,8 @@ export {
   beginConditionalRegionSwitch,
   beginKeyedListReconcile,
   beginNestedBlockReplace,
+  cancelKeyedListReconcile,
+  cancelNestedBlockReplace,
   type ConditionalRegionBranchContext,
   type ConditionalRegionBranchRange,
   type ConditionalRegionContentHooks,
