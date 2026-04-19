@@ -8,7 +8,8 @@ export type {
   BlueprintBuilderError,
   ConditionalRegionDefinition,
   KeyedListRegionDefinition,
-  NestedBlockRegionDefinition
+  NestedBlockRegionDefinition,
+  VirtualListRegionDefinition
 } from "./blueprint-builder";
 export { buildBlockIR, createBlueprintBuilder } from "./blueprint-builder";
 

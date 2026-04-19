@@ -83,6 +83,11 @@ export type IRRegion =
       readonly kind: "keyed-list";
       readonly anchorStartNode: number;
       readonly anchorEndNode: number;
+    }
+  | {
+      readonly kind: "virtual-list";
+      readonly anchorStartNode: number;
+      readonly anchorEndNode: number;
     };
 
 export interface LowerBlockIRError {
@@ -286,6 +291,22 @@ export function lowerBlockIRToBlueprint(
         }
 
         regionType[regionSlot] = RegionType.KEYED_LIST;
+        regionAnchorStart[regionSlot] = startNode.value;
+        regionAnchorEnd[regionSlot] = endNode.value;
+        break;
+      }
+      case "virtual-list": {
+        const startNode = getNodeSlot(nodeSlotById, region.anchorStartNode, "region anchor start", regionSlot);
+        if (!startNode.ok) {
+          return startNode;
+        }
+
+        const endNode = getNodeSlot(nodeSlotById, region.anchorEndNode, "region anchor end", regionSlot);
+        if (!endNode.ok) {
+          return endNode;
+        }
+
+        regionType[regionSlot] = RegionType.VIRTUAL_LIST;
         regionAnchorStart[regionSlot] = startNode.value;
         regionAnchorEnd[regionSlot] = endNode.value;
         break;

@@ -5,19 +5,23 @@ import {
   attachConditionalRegion,
   attachKeyedListRegion,
   attachNestedBlockRegion,
+  attachVirtualListRegion,
   activateRegionSlot,
   beginConditionalRegionSwitch,
   beginKeyedListReconcile,
   beginNestedBlockReplace,
+  beginVirtualListWindowUpdate,
   beginResourceRequest,
   beginSchedulerFlush,
   clearConditionalRegion,
   clearKeyedListRegion,
+  clearVirtualListRegion,
   completeConditionalRegionContentSwitch,
   completeConditionalRegionSwitchWithHooks,
   completeConditionalRegionSwitch,
   completeKeyedListReconcile,
   completeNestedBlockReplace,
+  completeVirtualListWindowUpdate,
   commitResourceValue,
   clearDirty,
   createBlockInstance,
@@ -34,6 +38,7 @@ import {
   getKeyedListReconcilePayload,
   getKeyedListRegionState,
   getNestedBlockRegionMountedState,
+  getVirtualListRegionState,
   hasConditionalRegionMountedContent,
   initializeRegionSlot,
   isDirty,
@@ -774,5 +779,64 @@ describe("@jue/runtime-core", () => {
       payloadCount: 0
     });
     expect(instance.regionLifecycle[0]).toBe(RegionLifecycle.ACTIVE);
+  });
+
+  it("attaches, updates and clears a virtual list region window", () => {
+    const blueprintResult = createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      regionType: new Uint8Array([RegionType.VIRTUAL_LIST]),
+      regionAnchorStart: new Uint32Array([INVALID_INDEX]),
+      regionAnchorEnd: new Uint32Array([INVALID_INDEX])
+    });
+
+    expect(blueprintResult.ok).toBe(true);
+    if (!blueprintResult.ok) {
+      return;
+    }
+
+    const instance = createBlockInstance(blueprintResult.value);
+    expect(initializeRegionSlot(instance, 0)).toBe(true);
+
+    expect(attachVirtualListRegion(instance, 0, 100, 10, 14)).toBe(true);
+    expect(getVirtualListRegionState(instance, 0)).toEqual({
+      itemCount: 100,
+      windowStart: 10,
+      windowEnd: 14,
+      targetWindowStart: null,
+      targetWindowEnd: null
+    });
+
+    expect(beginVirtualListWindowUpdate(instance, 0, 100, 12, 16)).toBe(true);
+    expect(instance.regionLifecycle[0]).toBe(RegionLifecycle.UPDATING);
+    expect(getVirtualListRegionState(instance, 0)).toEqual({
+      itemCount: 100,
+      windowStart: 10,
+      windowEnd: 14,
+      targetWindowStart: 12,
+      targetWindowEnd: 16
+    });
+
+    expect(completeVirtualListWindowUpdate(instance, 0)).toBe(true);
+    expect(getVirtualListRegionState(instance, 0)).toEqual({
+      itemCount: 100,
+      windowStart: 12,
+      windowEnd: 16,
+      targetWindowStart: null,
+      targetWindowEnd: null
+    });
+
+    expect(beginVirtualListWindowUpdate(instance, 0, 100, 99, 101)).toBe(false);
+    expect(clearVirtualListRegion(instance, 0)).toBe(true);
+    expect(instance.regionLifecycle[0]).toBe(RegionLifecycle.INACTIVE);
+    expect(getVirtualListRegionState(instance, 0)).toEqual({
+      itemCount: 0,
+      windowStart: 0,
+      windowEnd: 0,
+      targetWindowStart: null,
+      targetWindowEnd: null
+    });
   });
 });

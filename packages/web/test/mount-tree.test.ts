@@ -222,6 +222,70 @@ describe("@jue/web mountTree", () => {
     expect(root.textContent).toBe("[]");
     expect(mountedResult.value.instance.regionLifecycle[0]).toBe(RegionLifecycle.INACTIVE);
   });
+
+  it("rebinds a virtual list window through stable visible cells", () => {
+    const root = document.createElement("div");
+    const parentBuilder = createBlueprintBuilder();
+    const parent = parentBuilder.element("View");
+    const before = parentBuilder.text("items:");
+    const end = parentBuilder.text(":end");
+    expect(parentBuilder.append(parent, before).ok).toBe(true);
+    expect(parentBuilder.append(parent, end).ok).toBe(true);
+    parentBuilder.defineVirtualListRegion({
+      anchorStartNode: before,
+      anchorEndNode: end
+    });
+
+    const parentLowered = parentBuilder.buildBlueprint();
+    expect(parentLowered.ok).toBe(true);
+    if (!parentLowered.ok) {
+      return;
+    }
+
+    const mountedResult = mountTree({
+      blueprint: parentLowered.value.blueprint,
+      root,
+      signalCount: parentLowered.value.signalCount
+    });
+
+    expect(mountedResult.ok).toBe(true);
+    if (!mountedResult.ok) {
+      return;
+    }
+
+    const list = mountedResult.value.regions.virtualList(0);
+    const attachResult = list.attach({
+      itemCount: 6,
+      windowStart: 0,
+      cells: [
+        virtualTextCell("A0"),
+        virtualTextCell("A1"),
+        virtualTextCell("A2")
+      ]
+    });
+
+    expect(attachResult.ok).toBe(true);
+    expect(root.textContent).toBe("items:A0A1A2:end");
+    const firstCellNode = root.querySelector("div > div");
+
+    const updateResult = list.updateWindow({
+      itemCount: 6,
+      windowStart: 2,
+      cells: [
+        virtualTextCell("A2"),
+        virtualTextCell("A3"),
+        virtualTextCell("A4")
+      ]
+    });
+
+    expect(updateResult.ok).toBe(true);
+    expect(root.textContent).toBe("items:A2A3A4:end");
+    expect(root.querySelector("div > div")).toBe(firstCellNode);
+
+    const clearResult = list.clear();
+    expect(clearResult.ok).toBe(true);
+    expect(root.textContent).toBe("items::end");
+  });
 });
 
 function keyedTextItem(key: string, text: string) {
@@ -242,4 +306,26 @@ function createTextBlockBlueprint(text: string) {
   const textNode = builder.text(text);
   expect(builder.append(root, textNode).ok).toBe(true);
   return builder.buildBlueprint();
+}
+
+function virtualTextCell(value: string) {
+  const builder = createBlueprintBuilder();
+  builder.setSignalCount(1);
+  builder.setInitialSignalValues([value]);
+
+  const root = builder.element("View");
+  const textNode = builder.text("");
+  expect(builder.append(root, textNode).ok).toBe(true);
+  builder.bindText(textNode, 0);
+
+  const lowered = builder.buildBlueprint();
+  if (!lowered.ok) {
+    throw new Error(lowered.error.message);
+  }
+
+  return {
+    blueprint: lowered.value.blueprint,
+    signalCount: lowered.value.signalCount,
+    initialSignalValues: lowered.value.initialSignalValues
+  };
 }

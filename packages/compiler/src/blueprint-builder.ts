@@ -20,6 +20,7 @@ export interface BlueprintBuilder {
   defineConditionalRegion(region: ConditionalRegionDefinition): void;
   defineKeyedListRegion(region: KeyedListRegionDefinition): void;
   defineNestedBlockRegion(region: NestedBlockRegionDefinition): void;
+  defineVirtualListRegion(region: VirtualListRegionDefinition): void;
   bindText(node: number, signal: number): void;
   bindProp(node: number, key: string, signal: number): void;
   bindStyle(node: number, key: string, signal: number): void;
@@ -51,6 +52,11 @@ export interface NestedBlockRegionDefinition {
 }
 
 export interface KeyedListRegionDefinition {
+  readonly anchorStartNode: number;
+  readonly anchorEndNode: number;
+}
+
+export interface VirtualListRegionDefinition {
   readonly anchorStartNode: number;
   readonly anchorEndNode: number;
 }
@@ -162,6 +168,13 @@ export function createBlueprintBuilder(): BlueprintBuilder {
         childBlockSlot: region.childBlockSlot,
         childBlueprintSlot: region.childBlueprintSlot,
         mountMode: region.mountMode
+      });
+    },
+    defineVirtualListRegion(region) {
+      regions.push({
+        kind: "virtual-list",
+        anchorStartNode: region.anchorStartNode,
+        anchorEndNode: region.anchorEndNode
       });
     },
     bindText(node, signal) {
@@ -464,6 +477,21 @@ function validateBuilderState(
           return err({
             code: "BUILDER_REGION_ANCHOR_MISSING",
             message: `Keyed list region references missing anchorEndNode ${region.anchorEndNode}.`
+          });
+        }
+        break;
+      case "virtual-list":
+        if (!nodeIds.has(region.anchorStartNode)) {
+          return err({
+            code: "BUILDER_REGION_ANCHOR_MISSING",
+            message: `Virtual list region references missing anchorStartNode ${region.anchorStartNode}.`
+          });
+        }
+
+        if (!nodeIds.has(region.anchorEndNode)) {
+          return err({
+            code: "BUILDER_REGION_ANCHOR_MISSING",
+            message: `Virtual list region references missing anchorEndNode ${region.anchorEndNode}.`
           });
         }
         break;

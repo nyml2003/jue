@@ -53,6 +53,14 @@ export interface KeyedListReconcilePayload {
   readonly items: readonly KeyedListReconcilePayloadItem[];
 }
 
+export interface VirtualListRegionState {
+  readonly itemCount: number;
+  readonly windowStart: number;
+  readonly windowEnd: number;
+  readonly targetWindowStart: number | null;
+  readonly targetWindowEnd: number | null;
+}
+
 export function createBlockInstance(
   blueprint: Blueprint,
   options: CreateBlockInstanceOptions = {}
@@ -76,6 +84,11 @@ export function createBlockInstance(
   const regionKeyedListPayloadKind = new Uint8Array(blueprint.regionCount * 8);
   const regionKeyedListPayloadIndex = new Uint32Array(blueprint.regionCount * 8);
   const regionKeyedListPayloadToIndex = new Uint32Array(blueprint.regionCount * 8);
+  const regionVirtualListItemCount = new Uint32Array(blueprint.regionCount);
+  const regionVirtualListWindowStart = new Uint32Array(blueprint.regionCount);
+  const regionVirtualListWindowEnd = new Uint32Array(blueprint.regionCount);
+  const regionVirtualListTargetWindowStart = new Uint32Array(blueprint.regionCount);
+  const regionVirtualListTargetWindowEnd = new Uint32Array(blueprint.regionCount);
   const signalState = createSignalState(signalCount);
   const resourceState = createResourceState(resourceCount);
 
@@ -87,6 +100,8 @@ export function createBlockInstance(
   regionNestedMountedBlueprintSlot.fill(INVALID_STATE);
   regionNestedTargetBlockSlot.fill(INVALID_STATE);
   regionNestedTargetBlueprintSlot.fill(INVALID_STATE);
+  regionVirtualListTargetWindowStart.fill(INVALID_INDEX);
+  regionVirtualListTargetWindowEnd.fill(INVALID_INDEX);
 
   return {
     blueprint,
@@ -110,6 +125,11 @@ export function createBlockInstance(
     regionKeyedListPayloadKind,
     regionKeyedListPayloadIndex,
     regionKeyedListPayloadToIndex,
+    regionVirtualListItemCount,
+    regionVirtualListWindowStart,
+    regionVirtualListWindowEnd,
+    regionVirtualListTargetWindowStart,
+    regionVirtualListTargetWindowEnd,
     resourceStatus: resourceState.status,
     resourceLaneState: resourceState.laneState,
     resourceVersion: resourceState.version,
@@ -752,6 +772,131 @@ export function getKeyedListReconcilePayload(
   return payload;
 }
 
+export function attachVirtualListRegion(
+  instance: BlockInstance,
+  regionSlot: number,
+  itemCount: number,
+  windowStart: number,
+  windowEnd: number
+): boolean {
+  const lifecycle = instance.regionLifecycle[regionSlot];
+  if (lifecycle !== RegionLifecycle.INACTIVE) {
+    return false;
+  }
+
+  if (!isValidVirtualListWindow(itemCount, windowStart, windowEnd)) {
+    return false;
+  }
+
+  instance.regionVirtualListItemCount[regionSlot] = itemCount;
+  instance.regionVirtualListWindowStart[regionSlot] = windowStart;
+  instance.regionVirtualListWindowEnd[regionSlot] = windowEnd;
+  instance.regionVirtualListTargetWindowStart[regionSlot] = INVALID_INDEX;
+  instance.regionVirtualListTargetWindowEnd[regionSlot] = INVALID_INDEX;
+  instance.regionLifecycle[regionSlot] = RegionLifecycle.ACTIVE;
+  return true;
+}
+
+export function beginVirtualListWindowUpdate(
+  instance: BlockInstance,
+  regionSlot: number,
+  itemCount: number,
+  windowStart: number,
+  windowEnd: number
+): boolean {
+  const lifecycle = instance.regionLifecycle[regionSlot];
+  if (lifecycle !== RegionLifecycle.ACTIVE) {
+    return false;
+  }
+
+  if (!isValidVirtualListWindow(itemCount, windowStart, windowEnd)) {
+    return false;
+  }
+
+  const currentItemCount = instance.regionVirtualListItemCount[regionSlot] ?? 0;
+  const currentStart = instance.regionVirtualListWindowStart[regionSlot] ?? 0;
+  const currentEnd = instance.regionVirtualListWindowEnd[regionSlot] ?? 0;
+  if (currentItemCount === itemCount && currentStart === windowStart && currentEnd === windowEnd) {
+    return false;
+  }
+
+  instance.regionLifecycle[regionSlot] = RegionLifecycle.UPDATING;
+  instance.regionVirtualListItemCount[regionSlot] = itemCount;
+  instance.regionVirtualListTargetWindowStart[regionSlot] = windowStart;
+  instance.regionVirtualListTargetWindowEnd[regionSlot] = windowEnd;
+  return true;
+}
+
+export function completeVirtualListWindowUpdate(instance: BlockInstance, regionSlot: number): boolean {
+  const lifecycle = instance.regionLifecycle[regionSlot];
+  const targetStart = instance.regionVirtualListTargetWindowStart[regionSlot];
+  const targetEnd = instance.regionVirtualListTargetWindowEnd[regionSlot];
+
+  if (lifecycle !== RegionLifecycle.UPDATING) {
+    return false;
+  }
+
+  if (
+    targetStart === undefined ||
+    targetEnd === undefined ||
+    targetStart === INVALID_INDEX ||
+    targetEnd === INVALID_INDEX
+  ) {
+    return false;
+  }
+
+  instance.regionVirtualListWindowStart[regionSlot] = targetStart;
+  instance.regionVirtualListWindowEnd[regionSlot] = targetEnd;
+  instance.regionVirtualListTargetWindowStart[regionSlot] = INVALID_INDEX;
+  instance.regionVirtualListTargetWindowEnd[regionSlot] = INVALID_INDEX;
+  instance.regionLifecycle[regionSlot] = RegionLifecycle.ACTIVE;
+  return true;
+}
+
+export function cancelVirtualListWindowUpdate(instance: BlockInstance, regionSlot: number): boolean {
+  const lifecycle = instance.regionLifecycle[regionSlot];
+  if (lifecycle !== RegionLifecycle.UPDATING) {
+    return false;
+  }
+
+  instance.regionVirtualListTargetWindowStart[regionSlot] = INVALID_INDEX;
+  instance.regionVirtualListTargetWindowEnd[regionSlot] = INVALID_INDEX;
+  instance.regionLifecycle[regionSlot] = RegionLifecycle.ACTIVE;
+  return true;
+}
+
+export function clearVirtualListRegion(instance: BlockInstance, regionSlot: number): boolean {
+  const lifecycle = instance.regionLifecycle[regionSlot];
+  if (lifecycle !== RegionLifecycle.ACTIVE) {
+    return false;
+  }
+
+  instance.regionLifecycle[regionSlot] = RegionLifecycle.DISPOSING;
+  instance.regionVirtualListItemCount[regionSlot] = 0;
+  instance.regionVirtualListWindowStart[regionSlot] = 0;
+  instance.regionVirtualListWindowEnd[regionSlot] = 0;
+  instance.regionVirtualListTargetWindowStart[regionSlot] = INVALID_INDEX;
+  instance.regionVirtualListTargetWindowEnd[regionSlot] = INVALID_INDEX;
+  instance.regionLifecycle[regionSlot] = RegionLifecycle.INACTIVE;
+  return true;
+}
+
+export function getVirtualListRegionState(
+  instance: BlockInstance,
+  regionSlot: number
+): VirtualListRegionState {
+  const targetStart = instance.regionVirtualListTargetWindowStart[regionSlot] ?? INVALID_INDEX;
+  const targetEnd = instance.regionVirtualListTargetWindowEnd[regionSlot] ?? INVALID_INDEX;
+
+  return {
+    itemCount: instance.regionVirtualListItemCount[regionSlot] ?? 0,
+    windowStart: instance.regionVirtualListWindowStart[regionSlot] ?? 0,
+    windowEnd: instance.regionVirtualListWindowEnd[regionSlot] ?? 0,
+    targetWindowStart: targetStart === INVALID_INDEX ? null : targetStart,
+    targetWindowEnd: targetEnd === INVALID_INDEX ? null : targetEnd
+  };
+}
+
 function clearKeyedListPayload(instance: BlockInstance, regionSlot: number): void {
   const start = instance.regionKeyedListPayloadStart[regionSlot] ?? 0;
   const count = instance.regionKeyedListPayloadCount[regionSlot] ?? 0;
@@ -769,4 +914,15 @@ function clearKeyedListPayload(instance: BlockInstance, regionSlot: number): voi
 
   instance.regionKeyedListPayloadStart[regionSlot] = 0;
   instance.regionKeyedListPayloadCount[regionSlot] = 0;
+}
+
+function isValidVirtualListWindow(
+  itemCount: number,
+  windowStart: number,
+  windowEnd: number
+): boolean {
+  return itemCount >= 0 &&
+    windowStart >= 0 &&
+    windowEnd >= windowStart &&
+    windowEnd <= itemCount;
 }

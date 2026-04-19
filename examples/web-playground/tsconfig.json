@@ -17,6 +17,7 @@
     "src/**/*.d.ts",
     "../../packages/shared/src/**/*.ts",
     "../../packages/runtime-core/src/**/*.ts",
+    "../../packages/compiler/src/**/*.ts",
     "../../packages/web/src/**/*.ts"
   ]
 }

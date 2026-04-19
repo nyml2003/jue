@@ -196,6 +196,46 @@ describe("@jue/compiler", () => {
     expect(Array.from(lowered.value.blueprint.regionNestedMountMode)).toEqual([0]);
   });
 
+  it("builds a virtual list region through the builder and lowers virtual-list metadata", () => {
+    const builder = createBlueprintBuilder();
+
+    const root = builder.element("View");
+    const start = builder.text("[");
+    const end = builder.text("]");
+    expect(builder.append(root, start).ok).toBe(true);
+    expect(builder.append(root, end).ok).toBe(true);
+
+    builder.defineVirtualListRegion({
+      anchorStartNode: start,
+      anchorEndNode: end
+    });
+
+    const block = builder.buildIR();
+    const lowered = builder.buildBlueprint();
+
+    expect(block.ok).toBe(true);
+    if (!block.ok) {
+      return;
+    }
+
+    expect(block.value.regions).toEqual([
+      {
+        kind: "virtual-list",
+        anchorStartNode: start,
+        anchorEndNode: end
+      }
+    ]);
+
+    expect(lowered.ok).toBe(true);
+    if (!lowered.ok) {
+      return;
+    }
+
+    expect(Array.from(lowered.value.blueprint.regionType)).toEqual([3]);
+    expect(Array.from(lowered.value.blueprint.regionAnchorStart)).toEqual([1]);
+    expect(Array.from(lowered.value.blueprint.regionAnchorEnd)).toEqual([2]);
+  });
+
   it("throws when appending a node that is already attached", () => {
     const builder = createBlueprintBuilder();
     const parent = builder.element("View");

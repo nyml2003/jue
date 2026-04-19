@@ -1,14 +1,19 @@
 import {
   attachKeyedListRegion,
+  attachVirtualListRegion,
   beginConditionalRegionSwitch,
   beginKeyedListReconcile,
   beginNestedBlockReplace,
+  beginVirtualListWindowUpdate,
   cancelKeyedListReconcile,
   cancelNestedBlockReplace,
+  cancelVirtualListWindowUpdate,
   attachNestedBlockRegion,
   clearKeyedListRegion,
+  clearVirtualListRegion,
   completeKeyedListReconcile,
   completeNestedBlockReplace,
+  completeVirtualListWindowUpdate,
   createBlockInstance,
   createSchedulerState,
   completeConditionalRegionContentSwitch,
@@ -58,10 +63,21 @@ export interface KeyedListItemSpec extends TreeBlueprintSpec {
   readonly key: string;
 }
 
+export interface VirtualListCellSpec extends TreeBlueprintSpec {
+  readonly initialSignalValues: readonly unknown[];
+}
+
+export interface VirtualListWindowSpec {
+  readonly itemCount: number;
+  readonly windowStart: number;
+  readonly cells: readonly VirtualListCellSpec[];
+}
+
 export interface MountedTreeRegions {
   conditional(slot: number): MountedConditionalRegion;
   nested(slot: number): MountedNestedRegion;
   keyedList(slot: number): MountedKeyedListRegion;
+  virtualList(slot: number): MountedVirtualListRegion;
 }
 
 export interface MountedConditionalRegion {
@@ -79,6 +95,12 @@ export interface MountedNestedRegion {
 export interface MountedKeyedListRegion {
   attach(items: readonly KeyedListItemSpec[]): Result<FlushBindingsResult, MountBlockError>;
   reconcile(items: readonly KeyedListItemSpec[]): Result<FlushBindingsResult, MountBlockError>;
+  clear(): Result<FlushBindingsResult, MountBlockError>;
+}
+
+export interface MountedVirtualListRegion {
+  attach(window: VirtualListWindowSpec): Result<FlushBindingsResult, MountBlockError>;
+  updateWindow(window: VirtualListWindowSpec): Result<FlushBindingsResult, MountBlockError>;
   clear(): Result<FlushBindingsResult, MountBlockError>;
 }
 
@@ -162,6 +184,11 @@ export function mountTree(input: MountTreeInput): Result<MountedTree, MountBlock
   const keyedLists = new Map<number, {
     order: string[];
     trees: Map<string, MountedTree>;
+  }>();
+  const virtualLists = new Map<number, {
+    itemCount: number;
+    windowStart: number;
+    cells: MountedTree[];
   }>();
   let disposed = false;
 
@@ -502,6 +529,118 @@ export function mountTree(input: MountTreeInput): Result<MountedTree, MountBlock
             return mountedTree.flushInitialBindings();
           }
         };
+      },
+      virtualList(slot) {
+        return {
+          attach(window) {
+            if (disposed) {
+              return err({
+                code: "TREE_MOUNT_DISPOSED",
+                message: "Cannot attach a virtual list after the mounted tree has been disposed."
+              });
+            }
+
+            const windowEnd = window.windowStart + window.cells.length;
+            if (!attachVirtualListRegion(instance, slot, window.itemCount, window.windowStart, windowEnd)) {
+              return err({
+                code: "MOUNT_TREE_VIRTUAL_LIST_ATTACH_REJECTED",
+                message: `Virtual list region ${slot} rejected attach.`
+              });
+            }
+
+            const mountResult = mountVirtualListCells(input, nodes, nodeMounted, slot, window.cells);
+            if (!mountResult.ok) {
+              clearVirtualListRegion(instance, slot);
+              return mountResult;
+            }
+
+            virtualLists.set(slot, {
+              itemCount: window.itemCount,
+              windowStart: window.windowStart,
+              cells: mountResult.value
+            });
+
+            return mountedTree.flushInitialBindings();
+          },
+          updateWindow(window) {
+            if (disposed) {
+              return err({
+                code: "TREE_MOUNT_DISPOSED",
+                message: "Cannot update a virtual list after the mounted tree has been disposed."
+              });
+            }
+
+            const current = virtualLists.get(slot);
+            if (!current) {
+              return err({
+                code: "MOUNT_TREE_VIRTUAL_LIST_MISSING",
+                message: `Virtual list region ${slot} has not been attached.`
+              });
+            }
+
+            if (current.cells.length !== window.cells.length) {
+              return err({
+                code: "MOUNT_TREE_VIRTUAL_LIST_WINDOW_SIZE_CHANGED",
+                message: "Virtual list minimal controller requires a stable visible cell count."
+              });
+            }
+
+            const windowEnd = window.windowStart + window.cells.length;
+            if (!beginVirtualListWindowUpdate(instance, slot, window.itemCount, window.windowStart, windowEnd)) {
+              return err({
+                code: "MOUNT_TREE_VIRTUAL_LIST_UPDATE_REJECTED",
+                message: `Virtual list region ${slot} rejected window update.`
+              });
+            }
+
+            const rebindResult = rebindVirtualListCells(current.cells, window.cells);
+            if (!rebindResult.ok) {
+              cancelVirtualListWindowUpdate(instance, slot);
+              return rebindResult;
+            }
+
+            if (!completeVirtualListWindowUpdate(instance, slot)) {
+              return err({
+                code: "MOUNT_TREE_VIRTUAL_LIST_UPDATE_FAILED",
+                message: `Virtual list region ${slot} failed to complete window update.`
+              });
+            }
+
+            virtualLists.set(slot, {
+              itemCount: window.itemCount,
+              windowStart: window.windowStart,
+              cells: current.cells
+            });
+
+            return mountedTree.flushInitialBindings();
+          },
+          clear() {
+            if (disposed) {
+              return err({
+                code: "TREE_MOUNT_DISPOSED",
+                message: "Cannot clear a virtual list after the mounted tree has been disposed."
+              });
+            }
+
+            const current = virtualLists.get(slot);
+            if (current) {
+              const disposeResult = disposeMountedTrees(current.cells);
+              if (!disposeResult.ok) {
+                return disposeResult;
+              }
+              virtualLists.delete(slot);
+            }
+
+            if (!clearVirtualListRegion(instance, slot)) {
+              return err({
+                code: "MOUNT_TREE_VIRTUAL_LIST_CLEAR_REJECTED",
+                message: `Virtual list region ${slot} rejected clear.`
+              });
+            }
+
+            return mountedTree.flushInitialBindings();
+          }
+        };
       }
     },
     flushInitialBindings() {
@@ -703,6 +842,14 @@ export function mountTree(input: MountTreeInput): Result<MountedTree, MountBlock
         }
       }
       keyedLists.clear();
+
+      for (const list of virtualLists.values()) {
+        const disposeResult = disposeMountedTrees(list.cells);
+        if (!disposeResult.ok) {
+          return disposeResult;
+        }
+      }
+      virtualLists.clear();
 
       for (let index = nodes.length - 1; index >= 0; index -= 1) {
         const node = nodes[index];
@@ -947,6 +1094,95 @@ function reconcileKeyedListItems(
     order: nextItems.map(item => item.key),
     trees: nextTrees
   });
+}
+
+function mountVirtualListCells(
+  input: MountTreeInput,
+  nodes: HostNode[],
+  nodeMounted: boolean[],
+  regionSlot: number,
+  cells: readonly VirtualListCellSpec[]
+): Result<MountedTree[], MountBlockError> {
+  const root = getRegionHostRoot(input.blueprint, nodes, nodeMounted, regionSlot);
+  if (!root.ok) {
+    return root;
+  }
+
+  const mountedCells: MountedTree[] = [];
+
+  for (const cell of cells) {
+    const mounted = mountTree({
+      ...createChildMountInput(cell),
+      root: root.value
+    });
+
+    if (!mounted.ok) {
+      const disposeResult = disposeMountedTrees(mountedCells);
+      if (!disposeResult.ok) {
+        return disposeResult;
+      }
+      return mounted;
+    }
+
+    const moveResult = moveTreeBeforeRegionAnchor(input.blueprint, nodes, mounted.value, regionSlot);
+    if (!moveResult.ok) {
+      const mountedDisposeResult = mounted.value.dispose();
+      if (!mountedDisposeResult.ok) {
+        return mountedDisposeResult;
+      }
+
+      const partialDisposeResult = disposeMountedTrees(mountedCells);
+      if (!partialDisposeResult.ok) {
+        return partialDisposeResult;
+      }
+      return moveResult;
+    }
+
+    const flushResult = mounted.value.flushInitialBindings();
+    if (!flushResult.ok) {
+      const mountedDisposeResult = mounted.value.dispose();
+      if (!mountedDisposeResult.ok) {
+        return mountedDisposeResult;
+      }
+
+      const partialDisposeResult = disposeMountedTrees(mountedCells);
+      if (!partialDisposeResult.ok) {
+        return partialDisposeResult;
+      }
+      return flushResult;
+    }
+
+    mountedCells.push(mounted.value);
+  }
+
+  return ok(mountedCells);
+}
+
+function rebindVirtualListCells(
+  mountedCells: readonly MountedTree[],
+  nextCells: readonly VirtualListCellSpec[]
+): Result<void, MountBlockError> {
+  for (let index = 0; index < nextCells.length; index += 1) {
+    const mountedCell = mountedCells[index];
+    const nextCell = nextCells[index];
+    if (!mountedCell || !nextCell) {
+      return err({
+        code: "MOUNT_TREE_VIRTUAL_LIST_CELL_MISSING",
+        message: `Virtual list cell ${index} is missing.`
+      });
+    }
+
+    const writes = nextCell.initialSignalValues.map((value, signalSlot) => [
+      signalSlot,
+      value
+    ] as const);
+    const writeResult = mountedCell.setSignals(writes);
+    if (!writeResult.ok) {
+      return writeResult;
+    }
+  }
+
+  return ok(undefined);
 }
 
 function disposeNewKeyedListTrees(

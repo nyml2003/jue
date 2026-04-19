@@ -83,6 +83,11 @@ export interface BlockInstance {
   readonly regionKeyedListPayloadKind: Uint8Array;
   readonly regionKeyedListPayloadIndex: Uint32Array;
   readonly regionKeyedListPayloadToIndex: Uint32Array;
+  readonly regionVirtualListItemCount: Uint32Array;
+  readonly regionVirtualListWindowStart: Uint32Array;
+  readonly regionVirtualListWindowEnd: Uint32Array;
+  readonly regionVirtualListTargetWindowStart: Uint32Array;
+  readonly regionVirtualListTargetWindowEnd: Uint32Array;
   readonly resourceStatus: Uint8Array;
   readonly resourceLaneState: Uint8Array;
   readonly resourceVersion: Uint32Array;

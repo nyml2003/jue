@@ -17,7 +17,7 @@
 - `B`：基本完成
 - `C`：最小版本成立
 - `D1`：已进入稳定化阶段
-- `E`：前三类 region 的最小真实行为已成立，`VIRTUAL_LIST` 尚未开始
+- `E`：四类 region 的最小垂直链路已成立，`VIRTUAL_LIST` 仍需性能化
 - `F / G`：尚未系统推进
 - `D2`：推迟到后面
 
@@ -175,13 +175,15 @@
 - `KEYED_LIST` reconcile 已能处理 insert / remove / move，并拒绝重复 key
 - runtime keyed payload 有容量防护，失败时不会把 region 卡在 `UPDATING`
 - web controller 已提供 `regions.conditional()`、`regions.nested()`、`regions.keyedList()`
-- `VIRTUAL_LIST` 尚未实现
+- `VIRTUAL_LIST` 已有最小 window state 和 web controller
+- `VIRTUAL_LIST` 最小 web controller 使用固定可见 cell pool，窗口更新时重写 cell signals，不走普通 keyed diff
 
 当前限制：
 
 - `KEYED_LIST` 现在是正确性优先的最小 reconcile，不是最终性能最优 diff
 - child block / list item 的局部状态隔离已建立，但还没有 channel/resource 跨实例通信
-- 长列表滚动复用必须等 `VIRTUAL_LIST`，不能把普通 `KEYED_LIST` 当长列表方案
+- `VIRTUAL_LIST` 当前仍是最小版本：没有滚动事件接入、overscan、动态池扩容、item 高度测量和真实滚动 benchmark
+- 普通 `KEYED_LIST` 仍不能当长列表方案
 
 为什么先于 D2：
 

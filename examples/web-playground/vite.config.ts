@@ -10,5 +10,10 @@ export default defineConfig({
       "@jue/compiler": resolve(import.meta.dirname, "../../packages/compiler/src/index.ts"),
       "@jue/web": resolve(import.meta.dirname, "../../packages/web/src/index.ts")
     }
+  },
+  build: {
+    target: "esnext",
+    minify: true,
+    outDir: "dist",
   }
 });
