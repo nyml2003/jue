@@ -1,6 +1,11 @@
 import type { Blueprint } from "@jue/runtime-core";
 import { err, type Result } from "@jue/shared";
 
+export type { BlockIR, IRBinding, IRNode, LowerBlockIRError, LoweredBlockIR } from "./block-ir";
+export { lowerBlockIRToBlueprint } from "./block-ir";
+export type { BlueprintBuilder, BlueprintBuilderError } from "./blueprint-builder";
+export { buildBlockIR, createBlueprintBuilder } from "./blueprint-builder";
+
 export interface CompileOptions {
   readonly filename?: string;
 }

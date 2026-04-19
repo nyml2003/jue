@@ -63,25 +63,53 @@
 
 - runtime-core 不导入 DOM API 也能完成挂载和更新
 
-## Milestone D：Compiler 输出显式依赖表
+## Milestone D1：BlockIR / lowering / Builder
 
 目标：
 
-- 让作者输入先产出 `BlockIR`，再由 lowering 生成 `Blueprint`
+- 建立稳定的编译后端，让作者输入、fixture 和未来编译前端共享同一套语义层
 
 范围：
 
 - `BlockIR`
 - lowering
-- TSX 解析
+- `BlueprintBuilder`
+- fixture / example 迁移到 `BlockIR -> Blueprint`
+- lowering 排序、参数区和依赖表生成
+
+退出条件：
+
+- counter 示例经由 `Builder / BlockIR -> Blueprint` 路径生成后，运行时只消费索引表，不做依赖推理
+- 不再需要手写 `Uint32Array` / `Uint8Array` fixture
+
+当前状态：
+
+- 已开始
+- `BlockIR`
+- lowering
+- `BlueprintBuilder`
+- example 已迁移到这条链
+
+## Milestone D2：Compiler Frontend
+
+目标：
+
+- 让真实作者输入先产出 `BlockIR`，再复用已有 lowering 生成 `Blueprint`
+
+范围：
+
+- TSX / JSX 或其他前端输入表面
 - 静态结构 hoist
 - binding 降级
 - signal slot 分配
 - `signalToBindings` 生成
+- 编译错误诊断
 
 退出条件：
 
-- counter 示例经由 `BlockIR -> Blueprint` 路径编译后，运行时只消费索引表，不做依赖推理
+- 非 fixture 输入可以稳定产出 `BlockIR`
+- compiler 前端不直接拼 typed arrays
+- counter 示例可以不经 hand-written builder 而由编译前端生成
 
 ## Milestone E：Region 与动态结构加固
 
