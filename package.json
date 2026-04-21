@@ -5,11 +5,13 @@
   "scripts": {
     "build": "pnpm -r --filter \"./packages/*\" run build",
     "compile:components": "pnpm exec tsx ./scripts/compile-example-components.ts",
+    "build:examples": "pnpm --filter @jue/web-playground build",
     "size:packages": "pnpm build && node ./scripts/report-package-sizes.mjs",
     "typecheck": "pnpm exec tsc -p tsconfig.check.json --noEmit --pretty false",
     "lint": "eslint .",
     "test": "node ./node_modules/vitest/vitest.mjs run",
-    "dev": "pnpm --filter @jue/web-playground dev",
+    "test:e2e": "pnpm --filter @jue/web-playground test:e2e",
+    "dev": "pnpm --filter @jue/web-playground preview",
     "bench": "pnpm --filter @jue/web-playground run build"
   },
   "devDependencies": {

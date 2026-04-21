@@ -11,31 +11,43 @@
 
 ## 当前状态
 
-仓库目前还在文档先行阶段。
+仓库已经不再是纯文档先行阶段。
 
-现在先锁这几件事：
+当前更准确的状态是：
 
-- 架构边界
-- 显式依赖模型
-- IR 结构
-- 编译输出契约
-- V8 友好的运行时约束
-- 里程碑顺序
+- `BlockIR -> lowering -> Blueprint -> runtime` 主链已经成立
+- `CONDITIONAL / NESTED_BLOCK / KEYED_LIST / VIRTUAL_LIST` 四类 region 都已有最小可运行链路
+- Babel frontend 的最小 TSX canary 已经接入 `@jue/compiler/frontend`
+- `examples/web-playground` 里已经有从 `.component.tsx` 编译到 `.generated.ts` 再挂载的真实例子
+
+当前主线不是“先把文档写完”，而是：
+
+- 稳定 runtime / IR / region 边界
+- 继续收口 compiler frontend 的边界和输入面
+- 修齐 lint、文档和工程入口的一致性
+
+建议阅读顺序：
+
+1. 先读文档总索引和当前现状
+2. 再读 architecture / roadmap
+3. 再读 runtime / compiler / IR 等核心规范
 
 ## 文档索引
 
-- [架构设计](./docs/architecture.md)
-- [运行时模型](./docs/runtime-model.md)
-- [编译策略](./docs/compiler-strategy.md)
-- [IR 规范](./docs/ir-spec.md)
-- [API 草案](./docs/api-draft.md)
-- [宿主适配规范](./docs/host-adapter-spec.md)
-- [代码规范](./docs/code-style-spec.md)
-- [工程与工具链规范](./docs/engineering-toolchain-spec.md)
-- [Scheduler 规范](./docs/scheduler-spec.md)
-- [Region 状态机](./docs/region-state-machine.md)
-- [场景适配](./docs/scenario-coverage.md)
-- [路线图](./docs/roadmap.md)
+- [文档总索引](./docs/README.md)
+- [当前现状](./docs/01-overview/current-status.md)
+- [架构设计](./docs/01-overview/architecture.md)
+- [路线图](./docs/01-overview/roadmap.md)
+- [运行时模型](./docs/02-core-specs/runtime-model.md)
+- [编译策略](./docs/02-core-specs/compiler-strategy.md)
+- [IR 规范](./docs/02-core-specs/ir-spec.md)
+- [API 草案](./docs/02-core-specs/api-draft.md)
+- [宿主适配规范](./docs/02-core-specs/host-adapter-spec.md)
+- [Scheduler 规范](./docs/02-core-specs/scheduler-spec.md)
+- [Region 状态机](./docs/02-core-specs/region-state-machine.md)
+- [场景适配](./docs/02-core-specs/scenario-coverage.md)
+- [代码规范](./docs/03-engineering/code-style-spec.md)
+- [工程与工具链规范](./docs/03-engineering/engineering-toolchain-spec.md)
 
 ## 核心主张
 

@@ -9,13 +9,15 @@
       "DOM"
     ],
     "types": [
-      "vite/client"
+      "vite/client",
+      "node"
     ]
   },
   "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "src/**/*.d.ts",
+    "apps/**/*.ts",
+    "apps/**/*.tsx",
+    "scripts/**/*.ts",
+    "vite-env.d.ts",
     "../../packages/shared/src/**/*.ts",
     "../../packages/runtime-core/src/**/*.ts",
     "../../packages/compiler/src/**/*.ts",

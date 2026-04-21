@@ -9,6 +9,8 @@ import { parseModule } from "./parse";
 type TraverseFunction = typeof import("@babel/traverse").default;
 const traverse = resolveTraverseFunction(traverseModule);
 
+// FrontendState keeps the author-facing symbol table separate from the builder-facing slot table.
+// Lowering can then keep emitting the same slot-indexed runtime contract regardless of source syntax.
 interface FrontendState {
   builder: BlueprintBuilder;
   signalSlots: Map<string, number>;
@@ -31,6 +33,19 @@ export interface CompileToBlockIRResult {
 export interface CompileSourceToBlockIROptions {
   readonly handlers?: Readonly<Record<string, unknown>>;
 }
+
+type StaticExpressionReadResult =
+  | {
+      readonly kind: "static";
+      readonly value: unknown;
+    }
+  | {
+      readonly kind: "dynamic";
+    }
+  | {
+      readonly kind: "error";
+      readonly error: CompileToBlockIRError;
+    };
 
 function resolveTraverseFunction(value: unknown): TraverseFunction {
   if (typeof value === "function") {
@@ -398,16 +413,12 @@ function lowerJsxAttributes(
 
     const value = attribute.value;
     if (value === null) {
-      return err({
-        code: "UNSUPPORTED_BOOLEAN_ATTRIBUTE",
-        message: `compile() does not support implicit boolean attribute ${name.value}.`
-      });
+      bindStaticAttributeValue(state, node, name.value, true);
+      continue;
     }
 
     if (t.isStringLiteral(value)) {
-      const slot = allocateSignalSlot(state, `__static:${node}:${name.value}:${value.value}`);
-      state.builder.bindProp(node, normalizePropName(name.value), slot);
-      state.builder.setInitialSignalValues(mergeInitialSignalValues(state, slot, value.value));
+      bindStaticAttributeValue(state, node, name.value, value.value);
       continue;
     }
 
@@ -425,6 +436,16 @@ function lowerJsxAttributes(
         code: "UNSUPPORTED_EXPRESSION",
         message: `compile() does not support empty JSX expression for attribute ${name.value}.`
       });
+    }
+
+    if (name.value === "style") {
+      // `style={{ ... }}` still lowers into per-style-key bindings because the runtime only
+      // knows how to patch one style key per binding slot; there is no object-style patch opcode.
+      const styleObjectResult = lowerStyleObjectAttribute(expression, state, node);
+      if (!styleObjectResult.ok) {
+        return styleObjectResult;
+      }
+      continue;
     }
 
     if (isEventAttribute(name.value)) {
@@ -447,21 +468,19 @@ function lowerJsxAttributes(
       continue;
     }
 
-    const signalSlotResult = readSignalReference(expression, state);
-    if (!signalSlotResult.ok) {
-      return signalSlotResult;
+    const staticExpression = readStaticExpressionValue(expression);
+    if (staticExpression.kind === "error") {
+      return err(staticExpression.error);
     }
 
-    if (name.value === "className" || name.value === "class") {
-      state.builder.bindProp(node, "className", signalSlotResult.value);
+    if (staticExpression.kind === "static") {
+      bindStaticAttributeValue(state, node, name.value, staticExpression.value);
       continue;
     }
 
-    if (name.value === "style") {
-      return err({
-        code: "UNSUPPORTED_STYLE_OBJECT",
-        message: "compile() does not support style object expressions yet. Use style prop names directly."
-      });
+    const signalSlotResult = readSignalReference(expression, state);
+    if (!signalSlotResult.ok) {
+      return signalSlotResult;
     }
 
     if (name.value.startsWith("style:")) {
@@ -486,6 +505,19 @@ function lowerJsxExpressionChild(
 
   if (t.isConditionalExpression(expression)) {
     return lowerConditionalExpression(expression, state, parent);
+  }
+
+  const staticExpression = readStaticExpressionValue(expression);
+  if (staticExpression.kind === "error") {
+    return err(staticExpression.error);
+  }
+
+  if (staticExpression.kind === "static") {
+    if (staticExpression.value === null || typeof staticExpression.value === "boolean") {
+      return ok(undefined);
+    }
+
+    return appendStaticTextBinding(state, parent, staticExpression.value);
   }
 
   const signalSlotResult = readSignalReference(expression, state);
@@ -530,6 +562,8 @@ function lowerConditionalExpression(
     return alternateResult;
   }
 
+  // The runtime switches conditional regions by anchor range, so frontend lowering must
+  // materialize both branch ranges before it can describe the region metadata.
   state.builder.defineConditionalRegion({
     anchorStartNode: consequentResult.value,
     anchorEndNode: alternateResult.value,
@@ -538,6 +572,73 @@ function lowerConditionalExpression(
       { startNode: alternateResult.value, endNode: alternateResult.value }
     ]
   });
+
+  return ok(undefined);
+}
+
+function lowerStyleObjectAttribute(
+  expression: t.Expression,
+  state: FrontendState,
+  node: number
+): Result<void, CompileToBlockIRError> {
+  if (!t.isObjectExpression(expression)) {
+    return err({
+      code: "UNSUPPORTED_STYLE_OBJECT",
+      message: "compile() only supports style={{ key: value }} object literals."
+    });
+  }
+
+  for (const property of expression.properties) {
+    if (!t.isObjectProperty(property) || property.computed) {
+      return err({
+        code: "UNSUPPORTED_STYLE_OBJECT",
+        message: "compile() does not support computed or spread style properties yet."
+      });
+    }
+
+    const styleKeyResult = readStyleObjectKey(property.key);
+    if (!styleKeyResult.ok) {
+      return styleKeyResult;
+    }
+
+    const staticExpression = readStaticExpressionValue(property.value);
+    if (staticExpression.kind === "error") {
+      return err({
+        code: "UNSUPPORTED_STYLE_OBJECT",
+        message: staticExpression.error.message
+      });
+    }
+
+    if (staticExpression.kind === "static") {
+      // Static style members still go through slot allocation so backend/runtime stay on the
+      // same "binding reads slot N" contract as dynamic identifier-driven styles.
+      if (staticExpression.value === null || typeof staticExpression.value === "boolean") {
+        return err({
+          code: "UNSUPPORTED_STYLE_OBJECT",
+          message: `compile() does not support style.${styleKeyResult.value} with ${String(staticExpression.value)} value.`
+        });
+      }
+
+      bindStaticAttributeValue(state, node, `style:${styleKeyResult.value}`, staticExpression.value);
+      continue;
+    }
+
+    if (!t.isExpression(property.value)) {
+      return err({
+        code: "UNSUPPORTED_STYLE_OBJECT",
+        message: `compile() does not support style.${styleKeyResult.value} with non-expression value.`
+      });
+    }
+
+    // Non-static style members are limited to signal identifiers for now. Allowing arbitrary
+    // expressions here would immediately leak implicit computation back into runtime authoring.
+    const signalSlotResult = readSignalReference(property.value, state);
+    if (!signalSlotResult.ok) {
+      return signalSlotResult;
+    }
+
+    state.builder.bindStyle(node, styleKeyResult.value, signalSlotResult.value);
+  }
 
   return ok(undefined);
 }
@@ -562,6 +663,72 @@ function readSignalReference(
     code: "SIGNAL_REFERENCE_MISSING",
     message: `Signal ${expression.name} is not declared with createSignal().`
   });
+}
+
+function readStyleObjectKey(
+  key: t.Expression | t.Identifier | t.PrivateName
+): Result<string, CompileToBlockIRError> {
+  if (t.isIdentifier(key)) {
+    return ok(key.name);
+  }
+
+  if (t.isStringLiteral(key)) {
+    return ok(key.value);
+  }
+
+  return err({
+    code: "UNSUPPORTED_STYLE_OBJECT",
+    message: "compile() only supports identifier or string style property keys."
+  });
+}
+
+function readStaticExpressionValue(expression: t.Expression): StaticExpressionReadResult {
+  if (t.isIdentifier(expression)) {
+    return {
+      kind: "dynamic"
+    };
+  }
+
+  if (t.isStringLiteral(expression) || t.isNumericLiteral(expression) || t.isBooleanLiteral(expression)) {
+    return {
+      kind: "static",
+      value: expression.value
+    };
+  }
+
+  if (t.isNullLiteral(expression)) {
+    return {
+      kind: "static",
+      value: null
+    };
+  }
+
+  if (t.isTemplateLiteral(expression)) {
+    if (expression.expressions.length > 0) {
+      return {
+        kind: "error",
+        error: {
+          code: "UNSUPPORTED_EXPRESSION",
+          message: "compile() does not support template literals with expressions yet."
+        }
+      };
+    }
+
+    return {
+      kind: "static",
+      value: expression.quasis.map(quasi => quasi.value.cooked ?? "").join("")
+    };
+  }
+
+  return {
+    kind: "error",
+    error: {
+      code: "UNSUPPORTED_EXPRESSION",
+      // Keep the accepted set intentionally narrow. Once this helper says "static", callers are
+      // allowed to allocate immutable slots without introducing extra runtime evaluation paths.
+      message: `compile() currently only supports identifier or literal expressions, got ${expression.type}.`
+    }
+  };
 }
 
 function getJsxTagName(
@@ -657,6 +824,48 @@ function allocateSignalSlot(state: FrontendState, signalName: string): number {
   const slot = state.signalSlots.size;
   state.signalSlots.set(signalName, slot);
   return slot;
+}
+
+// Static literal bindings still become slot-backed bindings because the backend/runtime contract
+// only understands "binding reads slot N", not a separate direct-literal patch path.
+function bindStaticAttributeValue(
+  state: FrontendState,
+  node: number,
+  attributeName: string,
+  value: unknown
+): void {
+  const slot = allocateSignalSlot(state, createStaticSignalKey(node, attributeName, value));
+  mergeInitialSignalValues(state, slot, value);
+
+  if (attributeName.startsWith("style:")) {
+    state.builder.bindStyle(node, attributeName.slice("style:".length), slot);
+    return;
+  }
+
+  state.builder.bindProp(node, normalizePropName(attributeName), slot);
+}
+
+function appendStaticTextBinding(
+  state: FrontendState,
+  parent: number,
+  value: unknown
+): Result<void, CompileToBlockIRError> {
+  const textNode = state.builder.text("");
+  const appendResult = state.builder.append(parent, textNode);
+  if (!appendResult.ok) {
+    return err(appendResult.error);
+  }
+
+  // Even literal JSX children are lowered as text bindings instead of inline text nodes so the
+  // frontend keeps one consistent path for "dynamic-looking child content becomes a binding slot".
+  const slot = allocateSignalSlot(state, createStaticSignalKey(parent, "__text", value));
+  mergeInitialSignalValues(state, slot, value);
+  state.builder.bindText(textNode, slot);
+  return ok(undefined);
+}
+
+function createStaticSignalKey(node: number, key: string, value: unknown): string {
+  return `__static:${node}:${key}:${typeof value}:${JSON.stringify(value)}`;
 }
 
 function mergeInitialSignalValues(

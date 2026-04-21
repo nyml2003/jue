@@ -6,23 +6,25 @@ import {
   handlers as compiledHandlers,
   initialSignalValues,
   signalCount
-} from "./compiler-canary.generated";
+} from "./generated/page.generated";
 
 const handlers = compiledHandlers as {
-  readonly handleClickPressCount: () => number;
+  readonly getOpenRunbookCount: () => number;
+  readonly getNotifyOpsCount: () => number;
 };
 
-export interface MountedCompilerCanary {
-  getPressCount(): number;
-  dispose(): Result<void, CompilerCanaryError>;
+export interface MountedReleaseChecklist {
+  getOpenRunbookCount(): number;
+  getNotifyOpsCount(): number;
+  dispose(): Result<void, ReleaseChecklistError>;
 }
 
-export interface CompilerCanaryError {
+export interface ReleaseChecklistError {
   readonly code: string;
   readonly message: string;
 }
 
-export function mountCompilerCanary(root: Node): Result<MountedCompilerCanary, CompilerCanaryError> {
+export function mountReleaseChecklist(root: Node): Result<MountedReleaseChecklist, ReleaseChecklistError> {
   const mountedResult = mountTree({
     blueprint,
     root,
@@ -39,11 +41,15 @@ export function mountCompilerCanary(root: Node): Result<MountedCompilerCanary, C
   }
 
   return ok({
-    getPressCount() {
-      return handlers.handleClickPressCount();
+    getOpenRunbookCount() {
+      return handlers.getOpenRunbookCount();
+    },
+    getNotifyOpsCount() {
+      return handlers.getNotifyOpsCount();
     },
     dispose() {
       return mountedResult.value.dispose();
     }
   });
 }
+

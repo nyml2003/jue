@@ -3,10 +3,59 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>jue playground</title>
-    <script type="module" src="./src/main.ts"></script>
+    <title>jue examples</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Iowan Old Style", "Palatino Linotype", serif;
+      }
+
+      body {
+        margin: 0;
+        padding: 32px;
+        background:
+          radial-gradient(circle at top, rgba(194, 214, 255, 0.45), transparent 38%),
+          linear-gradient(180deg, #f6f1e8 0%, #ece5d8 100%);
+        color: #1f1b18;
+      }
+
+      main {
+        display: grid;
+        gap: 16px;
+      }
+
+      section {
+        padding: 20px;
+        border: 1px solid rgba(31, 27, 24, 0.12);
+        background: rgba(255, 252, 245, 0.88);
+        box-shadow: 0 24px 64px rgba(68, 52, 35, 0.12);
+      }
+
+      ul {
+        margin: 12px 0 0;
+        padding-left: 20px;
+      }
+
+      li + li {
+        margin-top: 8px;
+      }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
+    <main>
+      <section>
+        <h1>jue example apps</h1>
+        <p>Each example is an independent small app with its own source, generated module, e2e directory, and local dist output.</p>
+      </section>
+      <section>
+        <h2>Available apps</h2>
+        <ul>
+          <li><a href="./apps/account-overview/dist/">Account Overview</a></li>
+          <li><a href="./apps/incident-brief/dist/">Incident Brief</a></li>
+          <li><a href="./apps/release-checklist/dist/">Release Checklist</a></li>
+        </ul>
+      </section>
+    </main>
   </body>
 </html>
+

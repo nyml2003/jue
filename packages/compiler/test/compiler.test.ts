@@ -359,6 +359,73 @@ describe("@jue/compiler", () => {
     expect(Array.from(result.value.bindingOpcode)).toEqual([2, 0, 5]);
   });
 
+  it("compiles literal expression children and static prop/style attributes", () => {
+    const result = compile(`
+      import { View, Text } from "@jue/jsx";
+
+      function render() {
+        return (
+          <View className={"panel"} style:width={"320px"}>
+            <Text>{42}</Text>
+          </View>
+        );
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.value.bindingCount).toBe(3);
+    expect(Array.from(result.value.bindingOpcode)).toEqual([2, 3, 0]);
+    expect(result.value.bindingArgRef).toContain("className");
+    expect(result.value.bindingArgRef).toContain("width");
+    expect(Array.from(result.value.signalToBindingCount)).toEqual([1, 1, 1]);
+  });
+
+  it("compiles implicit boolean attributes as static prop bindings", () => {
+    const result = compile(`
+      import { Input } from "@jue/jsx";
+
+      function render() {
+        return <Input disabled />;
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.value.bindingCount).toBe(1);
+    expect(Array.from(result.value.bindingOpcode)).toEqual([2]);
+    expect(result.value.bindingArgRef).toContain("disabled");
+    expect(Array.from(result.value.signalToBindingCount)).toEqual([1]);
+  });
+
+  it("compiles style object expressions with mixed signal and literal values", () => {
+    const result = compile(`
+      import { View, createSignal } from "@jue/jsx";
+
+      function render() {
+        const panelWidth = createSignal("100%");
+        return <View style={{ width: panelWidth, opacity: 0.85 }} />;
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.value.bindingCount).toBe(2);
+    expect(Array.from(result.value.bindingOpcode)).toEqual([3, 3]);
+    expect(result.value.bindingArgRef).toContain("width");
+    expect(result.value.bindingArgRef).toContain("opacity");
+    expect(Array.from(result.value.signalToBindingCount)).toEqual([1, 1]);
+  });
+
   it("compiles a conditional JSX expression into a conditional region", () => {
     const result = compile(`
       import { View, Text, createSignal } from "@jue/jsx";
