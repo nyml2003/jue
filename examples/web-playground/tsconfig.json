@@ -1,6 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "jsx": "preserve",
     "rootDir": "../..",
     "outDir": "dist",
     "lib": [
@@ -18,6 +19,8 @@
     "../../packages/shared/src/**/*.ts",
     "../../packages/runtime-core/src/**/*.ts",
     "../../packages/compiler/src/**/*.ts",
+    "../../packages/jsx/src/**/*.ts",
+    "../../packages/jsx/src/**/*.d.ts",
     "../../packages/web/src/**/*.ts"
   ]
 }

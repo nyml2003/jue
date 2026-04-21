@@ -1,6 +1,8 @@
 import type { Blueprint } from "@jue/runtime-core";
 import { err, type Result } from "@jue/shared";
 
+import { lowerBlockIRToBlueprint } from "./block-ir";
+
 export type { BlockIR, IRBinding, IRNode, IRRegion, LowerBlockIRError, LoweredBlockIR } from "./block-ir";
 export { lowerBlockIRToBlueprint } from "./block-ir";
 export type {
@@ -14,7 +16,7 @@ export type {
 export { buildBlockIR, createBlueprintBuilder } from "./blueprint-builder";
 
 export interface CompileOptions {
-  readonly filename?: string;
+  readonly _legacyCompileMoved?: never;
 }
 
 export interface CompileError {
@@ -23,8 +25,12 @@ export interface CompileError {
 }
 
 export function compile(_source: string, _options: CompileOptions = {}): Result<Blueprint, CompileError> {
-  return err({
-    code: "NOT_IMPLEMENTED",
-    message: "compile() is not implemented yet."
-  });
+  return {
+    ok: false,
+    value: null,
+    error: {
+      code: "COMPILE_MOVED",
+      message: "compile() moved to @jue/compiler/frontend. Import compile() from that subpath."
+    }
+  } satisfies Result<Blueprint, CompileError>;
 }

@@ -15,7 +15,7 @@
     "@jue/shared": "workspace:*"
   },
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --format=esm --platform=neutral --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/index.js --sourcemap && esbuild src/index.ts --bundle --format=esm --platform=neutral --target=esnext --external:@jue/runtime-core --external:@jue/shared --minify --outfile=dist/index.min.js && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('../../node_modules/.cache/jue/native',{recursive:true,force:true})\" && esbuild src/index.ts --bundle --format=esm --platform=neutral --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/index.js --sourcemap && esbuild src/index.ts --bundle --format=esm --platform=neutral --target=esnext --external:@jue/runtime-core --external:@jue/shared --minify --outfile=dist/index.min.js && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   }
 }

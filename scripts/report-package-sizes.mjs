@@ -1,8 +1,9 @@
 import { brotliCompressSync, gzipSync } from "node:zlib";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { join, relative } from "node:path";
 
-const packagesRoot = new URL("../packages/", import.meta.url);
+const packagesRoot = fileURLToPath(new URL("../packages/", import.meta.url));
 const packageNames = readdirSync(packagesRoot, { withFileTypes: true })
   .filter(entry => entry.isDirectory())
   .map(entry => entry.name)
@@ -11,7 +12,7 @@ const packageNames = readdirSync(packagesRoot, { withFileTypes: true })
 const rows = [];
 
 for (const packageName of packageNames) {
-  const packageRoot = join(packagesRoot.pathname, packageName);
+  const packageRoot = join(packagesRoot, packageName);
   const distRoot = join(packageRoot, "dist");
 
   let files = [];
@@ -43,6 +44,12 @@ for (const packageName of packageNames) {
 }
 
 printRows(rows);
+console.log("");
+printEntrySummary(rows);
+console.log("");
+printJsTotals(rows);
+console.log("");
+printLargestEntrypoints(rows);
 
 function collectFiles(directory) {
   const files = [];
@@ -87,6 +94,70 @@ function printRows(rows) {
   for (const packageName of [...new Set(rows.map(row => row.packageName))]) {
     const packageRows = rows.filter(row => row.packageName === packageName);
     console.log(`${packageName.padEnd(12)} ${formatBytes(sum(packageRows, "raw")).padStart(9)} raw  ${formatBytes(sum(packageRows, "gzip")).padStart(9)} gzip  ${formatBytes(sum(packageRows, "brotli")).padStart(9)} brotli`);
+  }
+}
+
+function printEntrySummary(rows) {
+  console.log("entrypoints");
+
+  const entryRows = rows
+    .filter(row => row.file.endsWith("index.js") || row.file.endsWith("index.min.js"))
+    .sort((left, right) => {
+      if (left.packageName !== right.packageName) {
+        return left.packageName.localeCompare(right.packageName);
+      }
+
+      return left.file.localeCompare(right.file);
+    });
+
+  const table = [
+    ["package", "entry", "raw", "gzip", "brotli"],
+    ...entryRows.map(row => [
+      row.packageName,
+      row.file.replace(/^dist\//, ""),
+      formatBytes(row.raw),
+      formatBytes(row.gzip),
+      formatBytes(row.brotli)
+    ])
+  ];
+
+  const widths = table[0].map((_, index) => Math.max(...table.map(row => row[index].length)));
+  for (const row of table) {
+    console.log(row.map((cell, index) => cell.padEnd(widths[index])).join("  "));
+  }
+}
+
+function printJsTotals(rows) {
+  console.log("js totals");
+
+  for (const packageName of [...new Set(rows.map(row => row.packageName))]) {
+    const packageRows = rows.filter(row => row.packageName === packageName && row.file.endsWith(".js"));
+    console.log(`${packageName.padEnd(12)} ${formatBytes(sum(packageRows, "raw")).padStart(9)} raw  ${formatBytes(sum(packageRows, "gzip")).padStart(9)} gzip  ${formatBytes(sum(packageRows, "brotli")).padStart(9)} brotli`);
+  }
+}
+
+function printLargestEntrypoints(rows) {
+  console.log("largest entrypoints");
+
+  const entryRows = rows
+    .filter(row => row.file.endsWith("index.min.js"))
+    .sort((left, right) => right.gzip - left.gzip)
+    .slice(0, 10);
+
+  const table = [
+    ["package", "entry", "raw", "gzip", "brotli"],
+    ...entryRows.map(row => [
+      row.packageName,
+      row.file.replace(/^dist\//, ""),
+      formatBytes(row.raw),
+      formatBytes(row.gzip),
+      formatBytes(row.brotli)
+    ])
+  ];
+
+  const widths = table[0].map((_, index) => Math.max(...table.map(row => row[index].length)));
+  for (const row of table) {
+    console.log(row.map((cell, index) => cell.padEnd(widths[index])).join("  "));
   }
 }
 

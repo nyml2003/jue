@@ -1,0 +1,674 @@
+import traverseModule, { type NodePath } from "@babel/traverse";
+import * as t from "@babel/types";
+import { err, ok, type Result } from "@jue/shared";
+
+import { createBlueprintBuilder, type BlueprintBuilder } from "../blueprint-builder";
+import type { BlockIR } from "../block-ir";
+import { parseModule } from "./parse";
+
+type TraverseFunction = typeof import("@babel/traverse").default;
+const traverse = resolveTraverseFunction(traverseModule);
+
+interface FrontendState {
+  builder: BlueprintBuilder;
+  signalSlots: Map<string, number>;
+  signalSymbols: Map<string, number>;
+  eventHandlers: Map<string, unknown>;
+  initialSignalValues: unknown[];
+  jsxPrimitives: Set<string>;
+  createSignalLocalNames: Set<string>;
+}
+
+export interface CompileToBlockIRError {
+  readonly code: string;
+  readonly message: string;
+}
+
+export interface CompileToBlockIRResult {
+  readonly block: BlockIR;
+}
+
+export interface CompileSourceToBlockIROptions {
+  readonly handlers?: Readonly<Record<string, unknown>>;
+}
+
+function resolveTraverseFunction(value: unknown): TraverseFunction {
+  if (typeof value === "function") {
+    return value as TraverseFunction;
+  }
+
+  if (typeof value === "object" && value !== null && "default" in value) {
+    return resolveTraverseFunction((value as { readonly default: unknown }).default);
+  }
+
+  throw new TypeError("@babel/traverse did not expose a callable traverse function.");
+}
+
+export function compileSourceToBlockIR(
+  source: string,
+  options: CompileSourceToBlockIROptions = {}
+): Result<CompileToBlockIRResult, CompileToBlockIRError> {
+  const ast = parseModule(source);
+  const imports = collectJueJsxImports(ast);
+  const rootResult = findRenderRoot(ast);
+  if (!rootResult.ok) {
+    return rootResult;
+  }
+
+  const state: FrontendState = {
+    builder: createBlueprintBuilder(),
+    signalSlots: new Map<string, number>(),
+    signalSymbols: new Map<string, number>(),
+    eventHandlers: collectTopLevelFunctionHandlers(ast, options.handlers),
+    initialSignalValues: [],
+    jsxPrimitives: imports.jsxPrimitives,
+    createSignalLocalNames: imports.createSignalLocalNames
+  };
+  const signalsResult = collectRenderSignalDeclarations(ast, state);
+  if (!signalsResult.ok) {
+    return signalsResult;
+  }
+
+  const rootNodeResult = lowerJsxElement(rootResult.value, state, null);
+  if (!rootNodeResult.ok) {
+    return rootNodeResult;
+  }
+
+  state.builder.setSignalCount(state.signalSlots.size);
+  state.builder.setInitialSignalValues(state.initialSignalValues);
+  const block = state.builder.buildIR();
+  if (!block.ok) {
+    return err(block.error);
+  }
+
+  return ok({
+    block: block.value
+  });
+}
+
+function collectJueJsxImports(ast: t.File): {
+  readonly jsxPrimitives: Set<string>;
+  readonly createSignalLocalNames: Set<string>;
+} {
+  const jsxPrimitives = new Set<string>();
+  const createSignalLocalNames = new Set<string>();
+
+  for (const statement of ast.program.body) {
+    if (!t.isImportDeclaration(statement) || statement.source.value !== "@jue/jsx") {
+      continue;
+    }
+
+    for (const specifier of statement.specifiers) {
+      if (!t.isImportSpecifier(specifier) || !t.isIdentifier(specifier.imported)) {
+        continue;
+      }
+
+      if (isHostPrimitiveName(specifier.imported.name)) {
+        jsxPrimitives.add(specifier.local.name);
+        continue;
+      }
+
+      if (specifier.imported.name === "createSignal") {
+        createSignalLocalNames.add(specifier.local.name);
+      }
+    }
+  }
+
+  return {
+    jsxPrimitives,
+    createSignalLocalNames
+  };
+}
+
+function collectRenderSignalDeclarations(
+  ast: t.File,
+  state: FrontendState
+): Result<void, CompileToBlockIRError> {
+  const renderFunction = findRenderFunction(ast);
+  if (renderFunction === null) {
+    return err({
+      code: "UNSUPPORTED_ROOT_SHAPE",
+      message: "compile() currently requires a render() function."
+    });
+  }
+
+  for (const statement of renderFunction.body.body) {
+    if (!t.isVariableDeclaration(statement)) {
+      continue;
+    }
+
+    if (statement.kind !== "const") {
+      return err({
+        code: "UNSUPPORTED_SIGNAL_DECLARATION",
+        message: "compile() only supports const signal declarations."
+      });
+    }
+
+    for (const declaration of statement.declarations) {
+      const signalDeclaration = readCreateSignalDeclaration(declaration, state);
+      if (signalDeclaration === null) {
+        continue;
+      }
+
+      if (!signalDeclaration.ok) {
+        return signalDeclaration;
+      }
+
+      const slot = allocateSignalSlot(state, signalDeclaration.value.name);
+      state.signalSymbols.set(signalDeclaration.value.name, slot);
+      mergeInitialSignalValues(state, slot, signalDeclaration.value.initialValue);
+    }
+  }
+
+  return ok(undefined);
+}
+
+function readCreateSignalDeclaration(
+  declaration: t.VariableDeclarator,
+  state: FrontendState
+): Result<{ readonly name: string; readonly initialValue: unknown }, CompileToBlockIRError> | null {
+  if (!t.isIdentifier(declaration.id)) {
+    return null;
+  }
+
+  const init = declaration.init;
+  if (!t.isCallExpression(init) || !t.isIdentifier(init.callee)) {
+    return null;
+  }
+
+  if (!state.createSignalLocalNames.has(init.callee.name)) {
+    return null;
+  }
+
+  if (init.arguments.length !== 1) {
+    return err({
+      code: "UNSUPPORTED_SIGNAL_DECLARATION",
+      message: `Signal ${declaration.id.name} must call createSignal() with exactly one initial value.`
+    });
+  }
+
+  const argument = init.arguments[0];
+  if (!argument || t.isSpreadElement(argument) || t.isJSXNamespacedName(argument)) {
+    return err({
+      code: "UNSUPPORTED_SIGNAL_INITIALIZER",
+      message: `Signal ${declaration.id.name} uses an unsupported createSignal() initializer.`
+    });
+  }
+
+  const initialValue = readStaticSignalInitializer(argument);
+  if (!initialValue.ok) {
+    return initialValue;
+  }
+
+  return ok({
+    name: declaration.id.name,
+    initialValue: initialValue.value
+  });
+}
+
+function readStaticSignalInitializer(
+  expression: t.Expression | t.ArgumentPlaceholder
+): Result<unknown, CompileToBlockIRError> {
+  if (t.isStringLiteral(expression) || t.isNumericLiteral(expression) || t.isBooleanLiteral(expression)) {
+    return ok(expression.value);
+  }
+
+  if (t.isNullLiteral(expression)) {
+    return ok(null);
+  }
+
+  return err({
+    code: "UNSUPPORTED_SIGNAL_INITIALIZER",
+    message: `compile() only supports literal createSignal() initializers, got ${expression.type}.`
+  });
+}
+
+function findRenderFunction(ast: t.File): t.FunctionDeclaration | null {
+  for (const statement of ast.program.body) {
+    if (t.isFunctionDeclaration(statement) && statement.id?.name === "render") {
+      return statement;
+    }
+
+    if (!t.isExportNamedDeclaration(statement) || !t.isFunctionDeclaration(statement.declaration)) {
+      continue;
+    }
+
+    if (statement.declaration.id?.name === "render") {
+      return statement.declaration;
+    }
+  }
+
+  return null;
+}
+
+function findRenderRoot(ast: t.File): Result<t.JSXElement, CompileToBlockIRError> {
+  const renderFunction = findRenderFunction(ast);
+  if (renderFunction === null) {
+    return err({
+      code: "UNSUPPORTED_ROOT_SHAPE",
+      message: "compile() currently requires a render() function."
+    });
+  }
+
+  let root: t.JSXElement | null = null;
+  traverse(ast, {
+    ReturnStatement(path: NodePath<t.ReturnStatement>) {
+      if (root !== null) {
+        return;
+      }
+
+      const functionParent = path.findParent(parent => parent.isFunctionDeclaration());
+      if (!functionParent || functionParent.node !== renderFunction) {
+        return;
+      }
+
+      const argument = path.node.argument;
+      if (!t.isJSXElement(argument)) {
+        return;
+      }
+
+      root = argument;
+      path.stop();
+    }
+  });
+
+  if (root === null) {
+    return err({
+      code: "UNSUPPORTED_ROOT_SHAPE",
+      message: "compile() currently requires a function that returns a single JSX element."
+    });
+  }
+
+  return ok(root);
+}
+
+function collectTopLevelFunctionHandlers(
+  ast: t.File,
+  handlers: Readonly<Record<string, unknown>> = {}
+): Map<string, unknown> {
+  const resolvedHandlers = new Map<string, unknown>();
+  for (const [name, handler] of Object.entries(handlers)) {
+    resolvedHandlers.set(name, handler);
+  }
+
+  for (const statement of ast.program.body) {
+    if (!t.isFunctionDeclaration(statement) || !statement.id) {
+      if (
+        !t.isExportNamedDeclaration(statement) ||
+        !t.isFunctionDeclaration(statement.declaration) ||
+        !statement.declaration.id
+      ) {
+        continue;
+      }
+
+      if (!resolvedHandlers.has(statement.declaration.id.name)) {
+        resolvedHandlers.set(statement.declaration.id.name, statement.declaration.id.name);
+      }
+      continue;
+    }
+
+    if (!resolvedHandlers.has(statement.id.name)) {
+      resolvedHandlers.set(statement.id.name, statement.id.name);
+    }
+  }
+
+  return resolvedHandlers;
+}
+
+function lowerJsxElement(
+  element: t.JSXElement,
+  state: FrontendState,
+  parent: number | null
+): Result<number, CompileToBlockIRError> {
+  const tagNameResult = getJsxTagName(state, element.openingElement.name);
+  if (!tagNameResult.ok) {
+    return tagNameResult;
+  }
+
+  const node = state.builder.element(tagNameResult.value);
+  if (parent !== null) {
+    const appendResult = state.builder.append(parent, node);
+    if (!appendResult.ok) {
+      return err(appendResult.error);
+    }
+  }
+
+  const attributesResult = lowerJsxAttributes(element.openingElement.attributes, state, node);
+  if (!attributesResult.ok) {
+    return attributesResult;
+  }
+
+  for (const child of element.children) {
+    if (t.isJSXText(child)) {
+      const value = normalizeJsxText(child.value);
+      if (value.length === 0) {
+        continue;
+      }
+
+      const textNode = state.builder.text(value);
+      const appendResult = state.builder.append(node, textNode);
+      if (!appendResult.ok) {
+        return err(appendResult.error);
+      }
+      continue;
+    }
+
+    if (t.isJSXElement(child)) {
+      const childResult = lowerJsxElement(child, state, node);
+      if (!childResult.ok) {
+        return childResult;
+      }
+      continue;
+    }
+
+    if (t.isJSXExpressionContainer(child)) {
+      const expressionResult = lowerJsxExpressionChild(child.expression, state, node);
+      if (!expressionResult.ok) {
+        return expressionResult;
+      }
+      continue;
+    }
+
+    return err({
+      code: "UNSUPPORTED_JSX_CHILD",
+      message: `compile() does not support JSX child kind ${child.type}.`
+    });
+  }
+
+  return ok(node);
+}
+
+function lowerJsxAttributes(
+  attributes: readonly (t.JSXAttribute | t.JSXSpreadAttribute)[],
+  state: FrontendState,
+  node: number
+): Result<void, CompileToBlockIRError> {
+  for (const attribute of attributes) {
+    if (t.isJSXSpreadAttribute(attribute)) {
+      return err({
+        code: "UNSUPPORTED_JSX_SPREAD",
+        message: "compile() does not support JSX spread attributes yet."
+      });
+    }
+
+    const name = getJsxAttributeName(attribute.name);
+    if (!name.ok) {
+      return name;
+    }
+
+    const value = attribute.value;
+    if (value === null) {
+      return err({
+        code: "UNSUPPORTED_BOOLEAN_ATTRIBUTE",
+        message: `compile() does not support implicit boolean attribute ${name.value}.`
+      });
+    }
+
+    if (t.isStringLiteral(value)) {
+      const slot = allocateSignalSlot(state, `__static:${node}:${name.value}:${value.value}`);
+      state.builder.bindProp(node, normalizePropName(name.value), slot);
+      state.builder.setInitialSignalValues(mergeInitialSignalValues(state, slot, value.value));
+      continue;
+    }
+
+    if (!t.isJSXExpressionContainer(value)) {
+      const valueKind = value?.type ?? "unknown";
+      return err({
+        code: "UNSUPPORTED_ATTRIBUTE_VALUE",
+        message: `compile() does not support attribute ${name.value} with value kind ${valueKind}.`
+      });
+    }
+
+    const expression = value.expression;
+    if (t.isJSXEmptyExpression(expression)) {
+      return err({
+        code: "UNSUPPORTED_EXPRESSION",
+        message: `compile() does not support empty JSX expression for attribute ${name.value}.`
+      });
+    }
+
+    if (isEventAttribute(name.value)) {
+      if (!t.isIdentifier(expression)) {
+        return err({
+          code: "UNSUPPORTED_EVENT_HANDLER",
+          message: `compile() requires event ${name.value} to reference a named function.`
+        });
+      }
+
+      const handler = state.eventHandlers.get(expression.name);
+      if (handler === undefined) {
+        return err({
+          code: "UNSUPPORTED_EVENT_HANDLER",
+          message: `compile() could not resolve event handler ${expression.name}.`
+        });
+      }
+
+      state.builder.bindEvent(node, normalizeEventName(name.value), handler);
+      continue;
+    }
+
+    const signalSlotResult = readSignalReference(expression, state);
+    if (!signalSlotResult.ok) {
+      return signalSlotResult;
+    }
+
+    if (name.value === "className" || name.value === "class") {
+      state.builder.bindProp(node, "className", signalSlotResult.value);
+      continue;
+    }
+
+    if (name.value === "style") {
+      return err({
+        code: "UNSUPPORTED_STYLE_OBJECT",
+        message: "compile() does not support style object expressions yet. Use style prop names directly."
+      });
+    }
+
+    if (name.value.startsWith("style:")) {
+      state.builder.bindStyle(node, name.value.slice("style:".length), signalSlotResult.value);
+      continue;
+    }
+
+    state.builder.bindProp(node, normalizePropName(name.value), signalSlotResult.value);
+  }
+
+  return ok(undefined);
+}
+
+function lowerJsxExpressionChild(
+  expression: t.Expression | t.JSXEmptyExpression,
+  state: FrontendState,
+  parent: number
+): Result<void, CompileToBlockIRError> {
+  if (t.isJSXEmptyExpression(expression)) {
+    return ok(undefined);
+  }
+
+  if (t.isConditionalExpression(expression)) {
+    return lowerConditionalExpression(expression, state, parent);
+  }
+
+  const signalSlotResult = readSignalReference(expression, state);
+  if (!signalSlotResult.ok) {
+    return signalSlotResult;
+  }
+
+  const textNode = state.builder.text("");
+  const appendResult = state.builder.append(parent, textNode);
+  if (!appendResult.ok) {
+    return err(appendResult.error);
+  }
+
+  state.builder.bindText(textNode, signalSlotResult.value);
+  return ok(undefined);
+}
+
+function lowerConditionalExpression(
+  expression: t.ConditionalExpression,
+  state: FrontendState,
+  parent: number
+): Result<void, CompileToBlockIRError> {
+  const testResult = readSignalReference(expression.test, state);
+  if (!testResult.ok) {
+    return testResult;
+  }
+
+  if (!t.isJSXElement(expression.consequent) || !t.isJSXElement(expression.alternate)) {
+    return err({
+      code: "UNSUPPORTED_REGION_PATTERN",
+      message: "compile() currently only supports conditional JSX of the form cond ? <A /> : <B />."
+    });
+  }
+
+  const consequentResult = lowerJsxElement(expression.consequent, state, parent);
+  if (!consequentResult.ok) {
+    return consequentResult;
+  }
+
+  const alternateResult = lowerJsxElement(expression.alternate, state, parent);
+  if (!alternateResult.ok) {
+    return alternateResult;
+  }
+
+  state.builder.defineConditionalRegion({
+    anchorStartNode: consequentResult.value,
+    anchorEndNode: alternateResult.value,
+    branches: [
+      { startNode: consequentResult.value, endNode: consequentResult.value },
+      { startNode: alternateResult.value, endNode: alternateResult.value }
+    ]
+  });
+
+  return ok(undefined);
+}
+
+function readSignalReference(
+  expression: t.Expression,
+  state: FrontendState
+): Result<number, CompileToBlockIRError> {
+  if (!t.isIdentifier(expression)) {
+    return err({
+      code: "UNSUPPORTED_EXPRESSION",
+      message: `compile() currently only supports identifier expressions, got ${expression.type}.`
+    });
+  }
+
+  const slot = state.signalSymbols.get(expression.name);
+  if (slot !== undefined) {
+    return ok(slot);
+  }
+
+  return err({
+    code: "SIGNAL_REFERENCE_MISSING",
+    message: `Signal ${expression.name} is not declared with createSignal().`
+  });
+}
+
+function getJsxTagName(
+  state: FrontendState,
+  name: t.JSXIdentifier | t.JSXMemberExpression | t.JSXNamespacedName
+): Result<"View" | "Text" | "Button" | "Input" | "Image" | "ScrollView", CompileToBlockIRError> {
+  if (!t.isJSXIdentifier(name)) {
+    return err({
+      code: "UNSUPPORTED_COMPONENT_CALL",
+      message: "compile() does not support component/member JSX tags yet."
+    });
+  }
+
+  if (!state.jsxPrimitives.has(name.name)) {
+    return err({
+      code: "UNSUPPORTED_COMPONENT_CALL",
+      message: `compile() requires JSX tag <${name.name}> to be imported from @jue/jsx.`
+    });
+  }
+
+  switch (name.name) {
+    case "View":
+    case "Text":
+    case "Button":
+    case "Input":
+    case "Image":
+    case "ScrollView":
+      return ok(name.name);
+    default:
+      return err({
+        code: "UNSUPPORTED_COMPONENT_CALL",
+        message: `compile() does not support JSX tag <${name.name}> yet.`
+      });
+  }
+}
+
+function isHostPrimitiveName(name: string): boolean {
+  return name === "View" ||
+    name === "Text" ||
+    name === "Button" ||
+    name === "Input" ||
+    name === "Image" ||
+    name === "ScrollView";
+}
+
+function getJsxAttributeName(
+  name: t.JSXIdentifier | t.JSXNamespacedName
+): Result<string, CompileToBlockIRError> {
+  if (t.isJSXNamespacedName(name)) {
+    return ok(`${name.namespace.name}:${name.name.name}`);
+  }
+
+  return ok(name.name);
+}
+
+function normalizeJsxText(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function normalizePropName(name: string): string {
+  return name === "class" ? "className" : name;
+}
+
+function normalizeEventName(name: string): "onPress" | "onInput" | "onFocus" | "onBlur" | "onScroll" {
+  switch (name) {
+    case "onClick":
+      return "onPress";
+    case "onInput":
+    case "onFocus":
+    case "onBlur":
+    case "onScroll":
+      return name;
+    default:
+      return "onPress";
+  }
+}
+
+function isEventAttribute(name: string): boolean {
+  return name === "onClick" ||
+    name === "onPress" ||
+    name === "onInput" ||
+    name === "onFocus" ||
+    name === "onBlur" ||
+    name === "onScroll";
+}
+
+function allocateSignalSlot(state: FrontendState, signalName: string): number {
+  const existing = state.signalSlots.get(signalName);
+  if (existing !== undefined) {
+    return existing;
+  }
+
+  const slot = state.signalSlots.size;
+  state.signalSlots.set(signalName, slot);
+  return slot;
+}
+
+function mergeInitialSignalValues(
+  state: FrontendState,
+  slot: number,
+  value: unknown
+): readonly unknown[] {
+  while (state.initialSignalValues.length <= slot) {
+    state.initialSignalValues.push(undefined);
+  }
+
+  state.initialSignalValues[slot] = value;
+  state.builder.setInitialSignalValues(state.initialSignalValues);
+  return state.initialSignalValues;
+}

@@ -229,6 +229,35 @@ lowering 输出不能只考虑语义，还要考虑运行时布局。
 - 运行时复杂度留在 `Blueprint` 之外
 - `Blueprint` 本身继续保持扁平和紧凑
 
+## 当前前端 canary
+
+当前仓库已经有一个极小的 Babel 前端 canary。
+
+它的职责是：
+
+- `source -> Babel AST`
+- `Babel AST -> BlockIR`
+- `BlockIR -> lowering -> Blueprint`
+
+当前支持：
+
+- 单根 JSX element
+- 静态 element / text
+- `{identifier}` 文本绑定
+- 简单 prop binding
+- 直接命名函数的 event handler
+- 极小 conditional：`cond ? <A /> : <B />`
+
+当前明确不支持：
+
+- 组件调用
+- spread props
+- fragments
+- hooks
+- keyed / virtual list authoring
+
+也就是说，这一层现在证明的是前端边界可行，不是完整 JSX 编译器已经完成。
+
 ## 第一阶段编译器目标
 
 第一阶段只需要证明这几件事：

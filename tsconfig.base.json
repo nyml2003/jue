@@ -26,6 +26,9 @@
       "@jue/compiler": [
         "./packages/compiler/src/index.ts"
       ],
+      "@jue/jsx": [
+        "./packages/jsx/src/index.ts"
+      ],
       "@jue/web": [
         "./packages/web/src/index.ts"
       ],

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createBlueprintBuilder, lowerBlockIRToBlueprint, type BlockIR } from "../src/index";
+import { compile } from "../src/frontend/index";
 
 describe("@jue/compiler", () => {
   it("lowers a minimal BlockIR into an executable blueprint", () => {
@@ -310,6 +311,163 @@ describe("@jue/compiler", () => {
       error: {
         code: "BUILDER_SIGNAL_OUT_OF_RANGE",
         message: "Binding references signal slot 2, but signalCount is 1."
+      }
+    });
+  });
+
+  it("compiles a minimal JSX block through the Babel frontend", () => {
+    const result = compile(`
+      import { View, Text } from "@jue/jsx";
+
+      function render() {
+        return <View><Text>hello</Text></View>;
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.value.nodeCount).toBe(3);
+    expect(result.value.bindingCount).toBe(0);
+  });
+
+  it("compiles identifier-based text and prop bindings through the Babel frontend", () => {
+    const result = compile(`
+      import { View, Text, Button, createSignal } from "@jue/jsx";
+
+      function handleClick() {}
+      function render() {
+        const panelClass = createSignal("panel");
+        const label = createSignal("hello");
+        return (
+          <View className={panelClass}>
+            <Text>{label}</Text>
+            <Button onClick={handleClick}>press</Button>
+          </View>
+        );
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.value.bindingCount).toBe(3);
+    expect(Array.from(result.value.bindingOpcode)).toEqual([2, 0, 5]);
+  });
+
+  it("compiles a conditional JSX expression into a conditional region", () => {
+    const result = compile(`
+      import { View, Text, createSignal } from "@jue/jsx";
+
+      function render() {
+        const visible = createSignal(true);
+        return <View>{visible ? <Text>on</Text> : <Text>off</Text>}</View>;
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(Array.from(result.value.regionType)).toEqual([0]);
+    expect(Array.from(result.value.regionBranchRangeCount)).toEqual([2]);
+  });
+
+  it("compiles createSignal declarations into signal slots and initial values", () => {
+    const result = compile(`
+      import { View, Text, createSignal } from "@jue/jsx";
+
+      export function render() {
+        const aaa = createSignal("123");
+        return <View><Text>{aaa}</Text></View>;
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.value.signalToBindingCount).toEqual(new Uint32Array([1]));
+    expect(Array.from(result.value.bindingOpcode)).toEqual([0]);
+  });
+
+  it("supports aliased createSignal imports", () => {
+    const result = compile(`
+      import { View, Text, createSignal as signal } from "@jue/jsx";
+
+      export function render() {
+        const aaa = signal("123");
+        return <View><Text>{aaa}</Text></View>;
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.value.signalToBindingCount).toEqual(new Uint32Array([1]));
+  });
+
+  it("rejects identifier bindings that are not declared with createSignal", () => {
+    const result = compile(`
+      import { View, Text } from "@jue/jsx";
+
+      export function render() {
+        return <View><Text>{aaa}</Text></View>;
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "SIGNAL_REFERENCE_MISSING",
+        message: "Signal aaa is not declared with createSignal()."
+      }
+    });
+  });
+
+  it("rejects unsupported JSX tags through the Babel frontend", () => {
+    const result = compile(`
+      import { View, Text } from "@jue/jsx";
+
+      function render() {
+        return <div>hello</div>;
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_COMPONENT_CALL",
+        message: "compile() requires JSX tag <div> to be imported from @jue/jsx."
+      }
+    });
+  });
+
+  it("rejects unsupported spread props through the Babel frontend", () => {
+    const result = compile(`
+      import { View } from "@jue/jsx";
+
+      function render() {
+        return <View {...props} />;
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_JSX_SPREAD",
+        message: "compile() does not support JSX spread attributes yet."
       }
     });
   });

@@ -19,7 +19,7 @@
 - `D1`：已进入稳定化阶段
 - `E`：四类 region 的最小垂直链路已成立，`VIRTUAL_LIST` 仍需性能化
 - `F / G`：尚未系统推进
-- `D2`：推迟到后面
+- `D2`：已开始最小 Babel 前端 canary，但仍远未完成
 
 当前主线不再是“尽快接入完整编译前端”。
 
@@ -264,6 +264,23 @@
 
 - `D2` 推迟，不代表完全不做前端验证
 - 在 `D2` 正式开始前，可以插入一个极小的 frontend canary，验证 `BlockIR / lowering` 没有只适配 Builder
+
+当前状态：
+
+- `compile()` 已不再是 `NOT_IMPLEMENTED`
+- 已有最小 Babel 前端 canary：
+  - 单根 JSX Element
+  - 静态 element / text
+  - identifier text binding
+  - 简单 prop binding
+  - 直接命名函数 event handler
+  - 极小 conditional：`cond ? <A /> : <B />`
+- 还不支持：
+  - 组件调用
+  - spread props
+  - fragments
+  - hooks
+  - keyed / virtual list authoring 语法
 
 ## 早期不要做的事
 

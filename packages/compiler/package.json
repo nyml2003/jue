@@ -8,14 +8,26 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./frontend": {
+      "types": "./dist/frontend/index.d.ts",
+      "import": "./dist/frontend/index.js"
     }
   },
   "dependencies": {
+    "@babel/generator": "^7.29.1",
+    "@babel/parser": "^7.29.2",
+    "@babel/traverse": "^7.29.0",
+    "@babel/types": "^7.29.0",
     "@jue/runtime-core": "workspace:*",
     "@jue/shared": "workspace:*"
   },
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/index.js --sourcemap && esbuild src/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --minify --outfile=dist/index.min.js && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('../../node_modules/.cache/jue/compiler',{recursive:true,force:true})\" && esbuild src/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/index.js --sourcemap && esbuild src/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --minify --outfile=dist/index.min.js && esbuild src/frontend/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/frontend/index.js --sourcemap && esbuild src/frontend/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --minify --outfile=dist/frontend/index.min.js && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/babel__generator": "^7.27.0",
+    "@types/babel__traverse": "^7.28.0"
   }
 }
