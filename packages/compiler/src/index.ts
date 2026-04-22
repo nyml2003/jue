@@ -1,7 +1,5 @@
 import type { Blueprint } from "@jue/runtime-core";
-import { err, type Result } from "@jue/shared";
-
-import { lowerBlockIRToBlueprint } from "./block-ir";
+import type { Result } from "@jue/shared";
 
 export type { BlockIR, IRBinding, IRNode, IRRegion, LowerBlockIRError, LoweredBlockIR } from "./block-ir";
 export { lowerBlockIRToBlueprint } from "./block-ir";

@@ -67,6 +67,25 @@ describe("@jue/compiler", () => {
     expect(Array.from(lowered.value.blueprint.regionBranchNodeEnd)).toEqual([1, 2]);
   });
 
+  it("reports missing parent references when lowering raw BlockIR", () => {
+    const block: BlockIR = {
+      signalCount: 0,
+      nodes: [
+        { id: 0, kind: "element", type: "View", parent: 99 }
+      ],
+      bindings: []
+    };
+
+    expect(lowerBlockIRToBlueprint(block)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "IR_NODE_REFERENCE_MISSING",
+        message: "Missing parent reference for 0: node id 99 does not exist."
+      }
+    });
+  });
+
   it("builds BlockIR through the builder and lowers it to a blueprint", () => {
     const builder = createBlueprintBuilder();
     builder.setSignalCount(1);
@@ -315,6 +334,581 @@ describe("@jue/compiler", () => {
     });
   });
 
+  it("rejects negative signal counts in the builder", () => {
+    const builder = createBlueprintBuilder();
+    builder.setSignalCount(-1);
+    builder.element("View");
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_INVALID_SIGNAL_COUNT",
+        message: "signalCount must be greater than or equal to zero."
+      }
+    });
+  });
+
+  it("rejects initial signal values that exceed signalCount in the builder", () => {
+    const builder = createBlueprintBuilder();
+    builder.setSignalCount(1);
+    builder.setInitialSignalValues(["a", "b"]);
+    builder.element("View");
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_INVALID_INITIAL_SIGNAL_VALUES",
+        message: "Initial signal values exceed signalCount."
+      }
+    });
+  });
+
+  it("rejects empty builder blocks", () => {
+    const builder = createBlueprintBuilder();
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_EMPTY_BLOCK",
+        message: "A block must contain at least one node."
+      }
+    });
+  });
+
+  it("rejects text bindings that target non-text nodes", () => {
+    const builder = createBlueprintBuilder();
+    builder.setSignalCount(1);
+
+    const root = builder.element("View");
+    builder.bindText(root, 0);
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_BINDING_TARGET_KIND_INVALID",
+        message: "Text binding must target a text node, got element node 0."
+      }
+    });
+  });
+
+  it("rejects prop bindings that target text nodes", () => {
+    const builder = createBlueprintBuilder();
+    builder.setSignalCount(1);
+
+    const text = builder.text("hello");
+    builder.bindProp(text, "className", 0);
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_BINDING_TARGET_KIND_INVALID",
+        message: "Prop binding must target an element node, got text node 0."
+      }
+    });
+  });
+
+  it("rejects style bindings that target text nodes", () => {
+    const builder = createBlueprintBuilder();
+    builder.setSignalCount(1);
+
+    const text = builder.text("hello");
+    builder.bindStyle(text, "width", 0);
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_BINDING_TARGET_KIND_INVALID",
+        message: "Style binding must target an element node, got text node 0."
+      }
+    });
+  });
+
+  it("rejects event bindings that target text nodes", () => {
+    const builder = createBlueprintBuilder();
+
+    const text = builder.text("hello");
+    builder.bindEvent(text, "onPress", () => {});
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_BINDING_TARGET_KIND_INVALID",
+        message: "Event binding must target an element node, got text node 0."
+      }
+    });
+  });
+
+  it("rejects conditional regions without branches", () => {
+    const builder = createBlueprintBuilder();
+
+    const root = builder.element("View");
+    const a = builder.text("A");
+    expect(builder.append(root, a).ok).toBe(true);
+
+    builder.defineConditionalRegion({
+      anchorStartNode: a,
+      anchorEndNode: a,
+      branches: []
+    });
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_REGION_BRANCH_INVALID",
+        message: "Conditional region must define at least one branch."
+      }
+    });
+  });
+
+  it("rejects conditional regions with reversed branch ranges", () => {
+    const builder = createBlueprintBuilder();
+
+    const root = builder.element("View");
+    const a = builder.text("A");
+    const b = builder.text("B");
+    expect(builder.append(root, a).ok).toBe(true);
+    expect(builder.append(root, b).ok).toBe(true);
+
+    builder.defineConditionalRegion({
+      anchorStartNode: a,
+      anchorEndNode: b,
+      branches: [
+        { startNode: b, endNode: a }
+      ]
+    });
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_REGION_BRANCH_INVALID",
+        message: "Conditional region branch range 2-1 is reversed."
+      }
+    });
+  });
+
+  it("rejects conditional regions whose branch range escapes the anchor range", () => {
+    const builder = createBlueprintBuilder();
+
+    const root = builder.element("View");
+    const a = builder.text("A");
+    const b = builder.text("B");
+    expect(builder.append(root, a).ok).toBe(true);
+    expect(builder.append(root, b).ok).toBe(true);
+
+    builder.defineConditionalRegion({
+      anchorStartNode: a,
+      anchorEndNode: b,
+      branches: [
+        { startNode: root, endNode: b }
+      ]
+    });
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_REGION_BRANCH_INVALID",
+        message: "Conditional region branch range 0-2 must stay within anchor range 1-2."
+      }
+    });
+  });
+
+  it("rejects nested block regions with reversed anchor ranges", () => {
+    const builder = createBlueprintBuilder();
+
+    const root = builder.element("View");
+    const a = builder.text("A");
+    const b = builder.text("B");
+    expect(builder.append(root, a).ok).toBe(true);
+    expect(builder.append(root, b).ok).toBe(true);
+
+    builder.defineNestedBlockRegion({
+      anchorStartNode: b,
+      anchorEndNode: a,
+      childBlockSlot: 1,
+      childBlueprintSlot: 2,
+      mountMode: "attach"
+    });
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_REGION_ANCHOR_INVALID",
+        message: "Nested block region anchor range 2-1 is reversed."
+      }
+    });
+  });
+
+  it("rejects keyed list regions with reversed anchor ranges", () => {
+    const builder = createBlueprintBuilder();
+
+    const root = builder.element("View");
+    const a = builder.text("A");
+    const b = builder.text("B");
+    expect(builder.append(root, a).ok).toBe(true);
+    expect(builder.append(root, b).ok).toBe(true);
+
+    builder.defineKeyedListRegion({
+      anchorStartNode: b,
+      anchorEndNode: a
+    });
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_REGION_ANCHOR_INVALID",
+        message: "Keyed list region anchor range 2-1 is reversed."
+      }
+    });
+  });
+
+  it("rejects virtual list regions with reversed anchor ranges", () => {
+    const builder = createBlueprintBuilder();
+
+    const root = builder.element("View");
+    const a = builder.text("A");
+    const b = builder.text("B");
+    expect(builder.append(root, a).ok).toBe(true);
+    expect(builder.append(root, b).ok).toBe(true);
+
+    builder.defineVirtualListRegion({
+      anchorStartNode: b,
+      anchorEndNode: a
+    });
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_REGION_ANCHOR_INVALID",
+        message: "Virtual list region anchor range 2-1 is reversed."
+      }
+    });
+  });
+
+  it("rejects conditional regions whose anchors do not share the same parent boundary", () => {
+    const builder = createBlueprintBuilder();
+
+    const root = builder.element("View");
+    const group = builder.element("View");
+    const a = builder.text("A");
+    const b = builder.text("B");
+    expect(builder.append(root, group).ok).toBe(true);
+    expect(builder.append(root, a).ok).toBe(true);
+    expect(builder.append(group, b).ok).toBe(true);
+
+    builder.defineConditionalRegion({
+      anchorStartNode: a,
+      anchorEndNode: b,
+      branches: [
+        { startNode: a, endNode: a }
+      ]
+    });
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_REGION_BOUNDARY_INVALID",
+        message: "Conditional region anchor nodes 2 and 3 must share the same parent boundary."
+      }
+    });
+  });
+
+  it("rejects conditional regions with missing anchors", () => {
+    const builder = createBlueprintBuilder();
+    builder.element("View");
+
+    builder.defineConditionalRegion({
+      anchorStartNode: 4,
+      anchorEndNode: 4,
+      branches: [
+        { startNode: 4, endNode: 4 }
+      ]
+    });
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_REGION_ANCHOR_MISSING",
+        message: "Conditional region references missing anchorStartNode 4."
+      }
+    });
+  });
+
+  it("rejects conditional regions whose branch range does not share the anchor parent boundary", () => {
+    const builder = createBlueprintBuilder();
+
+    const root = builder.element("View");
+    const a = builder.text("A");
+    const group = builder.element("View");
+    const b = builder.text("B");
+    const c = builder.text("C");
+    expect(builder.append(root, a).ok).toBe(true);
+    expect(builder.append(root, group).ok).toBe(true);
+    expect(builder.append(group, b).ok).toBe(true);
+    expect(builder.append(root, c).ok).toBe(true);
+
+    builder.defineConditionalRegion({
+      anchorStartNode: a,
+      anchorEndNode: c,
+      branches: [
+        { startNode: b, endNode: b }
+      ]
+    });
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_REGION_BOUNDARY_INVALID",
+        message: "Conditional region branch range 3-3 must share the same parent boundary as anchor range 1-4."
+      }
+    });
+  });
+
+  it("rejects keyed list regions whose anchors do not share the same parent boundary", () => {
+    const builder = createBlueprintBuilder();
+
+    const root = builder.element("View");
+    const group = builder.element("View");
+    const a = builder.text("A");
+    const b = builder.text("B");
+    expect(builder.append(root, group).ok).toBe(true);
+    expect(builder.append(root, a).ok).toBe(true);
+    expect(builder.append(group, b).ok).toBe(true);
+
+    builder.defineKeyedListRegion({
+      anchorStartNode: a,
+      anchorEndNode: b
+    });
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_REGION_BOUNDARY_INVALID",
+        message: "Keyed list region anchor nodes 2 and 3 must share the same parent boundary."
+      }
+    });
+  });
+
+  it("rejects keyed list regions with missing anchors", () => {
+    const builder = createBlueprintBuilder();
+    builder.element("View");
+
+    builder.defineKeyedListRegion({
+      anchorStartNode: 5,
+      anchorEndNode: 5
+    });
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_REGION_ANCHOR_MISSING",
+        message: "Keyed list region references missing anchorStartNode 5."
+      }
+    });
+  });
+
+  it("rejects virtual list regions whose anchors do not share the same parent boundary", () => {
+    const builder = createBlueprintBuilder();
+
+    const root = builder.element("View");
+    const group = builder.element("View");
+    const a = builder.text("A");
+    const b = builder.text("B");
+    expect(builder.append(root, group).ok).toBe(true);
+    expect(builder.append(root, a).ok).toBe(true);
+    expect(builder.append(group, b).ok).toBe(true);
+
+    builder.defineVirtualListRegion({
+      anchorStartNode: a,
+      anchorEndNode: b
+    });
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_REGION_BOUNDARY_INVALID",
+        message: "Virtual list region anchor nodes 2 and 3 must share the same parent boundary."
+      }
+    });
+  });
+
+  it("rejects virtual list regions with missing anchors", () => {
+    const builder = createBlueprintBuilder();
+    builder.element("View");
+
+    builder.defineVirtualListRegion({
+      anchorStartNode: 9,
+      anchorEndNode: 9
+    });
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_REGION_ANCHOR_MISSING",
+        message: "Virtual list region references missing anchorStartNode 9."
+      }
+    });
+  });
+
+  it("rejects nested block regions whose anchors do not share the same parent boundary", () => {
+    const builder = createBlueprintBuilder();
+
+    const root = builder.element("View");
+    const group = builder.element("View");
+    const a = builder.text("A");
+    const b = builder.text("B");
+    expect(builder.append(root, group).ok).toBe(true);
+    expect(builder.append(root, a).ok).toBe(true);
+    expect(builder.append(group, b).ok).toBe(true);
+
+    builder.defineNestedBlockRegion({
+      anchorStartNode: a,
+      anchorEndNode: b,
+      childBlockSlot: 1,
+      childBlueprintSlot: 2,
+      mountMode: "attach"
+    });
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_REGION_BOUNDARY_INVALID",
+        message: "Nested block region anchor nodes 2 and 3 must share the same parent boundary."
+      }
+    });
+  });
+
+  it("rejects nested block regions with negative child block slots", () => {
+    const builder = createBlueprintBuilder();
+
+    const root = builder.element("View");
+    const a = builder.text("A");
+    expect(builder.append(root, a).ok).toBe(true);
+
+    builder.defineNestedBlockRegion({
+      anchorStartNode: a,
+      anchorEndNode: a,
+      childBlockSlot: -1,
+      childBlueprintSlot: 2,
+      mountMode: "attach"
+    });
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_REGION_NESTED_SLOT_INVALID",
+        message: "Nested block region childBlockSlot -1 must be >= 0."
+      }
+    });
+  });
+
+  it("rejects nested block regions with negative child blueprint slots", () => {
+    const builder = createBlueprintBuilder();
+
+    const root = builder.element("View");
+    const a = builder.text("A");
+    expect(builder.append(root, a).ok).toBe(true);
+
+    builder.defineNestedBlockRegion({
+      anchorStartNode: a,
+      anchorEndNode: a,
+      childBlockSlot: 1,
+      childBlueprintSlot: -2,
+      mountMode: "attach"
+    });
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_REGION_NESTED_SLOT_INVALID",
+        message: "Nested block region childBlueprintSlot -2 must be >= 0."
+      }
+    });
+  });
+
+  it("rejects nested block regions with missing anchors", () => {
+    const builder = createBlueprintBuilder();
+    builder.element("View");
+
+    builder.defineNestedBlockRegion({
+      anchorStartNode: 7,
+      anchorEndNode: 7,
+      childBlockSlot: 1,
+      childBlueprintSlot: 2,
+      mountMode: "attach"
+    });
+
+    expect(builder.buildIR()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_REGION_ANCHOR_MISSING",
+        message: "Nested block region references missing anchorStartNode 7."
+      }
+    });
+  });
+
+  it("rejects raw BlockIR with invalid initial signal values", () => {
+    const block: BlockIR = {
+      signalCount: 1,
+      initialSignalValues: ["a", "b"],
+      nodes: [
+        { id: 0, kind: "element", type: "View", parent: null }
+      ],
+      bindings: []
+    };
+
+    expect(lowerBlockIRToBlueprint(block)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "INVALID_INITIAL_SIGNAL_VALUES",
+        message: "Initial signal values exceed signalCount."
+      }
+    });
+  });
+
+  it("rejects raw BlockIR with invalid signal counts", () => {
+    const block: BlockIR = {
+      signalCount: -1,
+      nodes: [
+        { id: 0, kind: "element", type: "View", parent: null }
+      ],
+      bindings: []
+    };
+
+    expect(lowerBlockIRToBlueprint(block)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "INVALID_SIGNAL_COUNT",
+        message: "signalCount must be greater than or equal to zero."
+      }
+    });
+  });
+
   it("compiles a minimal JSX block through the Babel frontend", () => {
     const result = compile(`
       import { View, Text } from "@jue/jsx";
@@ -535,6 +1129,119 @@ describe("@jue/compiler", () => {
       error: {
         code: "UNSUPPORTED_JSX_SPREAD",
         message: "compile() does not support JSX spread attributes yet."
+      }
+    });
+  });
+
+  it("rejects render roots that are not JSX elements", () => {
+    const result = compile(`
+      export function render() {
+        return "hello";
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_ROOT_SHAPE",
+        message: "compile() currently requires a function that returns a single JSX element."
+      }
+    });
+  });
+
+  it("rejects missing render functions", () => {
+    const result = compile(`
+      export function notRender() {
+        return null;
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_ROOT_SHAPE",
+        message: "compile() currently requires a render() function."
+      }
+    });
+  });
+
+  it("rejects non-const signal declarations", () => {
+    const result = compile(`
+      import { View, createSignal } from "@jue/jsx";
+
+      export function render() {
+        let flag = createSignal(true);
+        return <View />;
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_SIGNAL_DECLARATION",
+        message: "compile() only supports const signal declarations."
+      }
+    });
+  });
+
+  it("rejects unsupported signal initializers", () => {
+    const result = compile(`
+      import { View, createSignal } from "@jue/jsx";
+
+      export function render() {
+        const value = createSignal({ a: 1 });
+        return <View />;
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_SIGNAL_INITIALIZER",
+        message: "compile() only supports literal createSignal() initializers, got ObjectExpression."
+      }
+    });
+  });
+
+  it("rejects unsupported style object expressions", () => {
+    const result = compile(`
+      import { View, createSignal } from "@jue/jsx";
+
+      export function render() {
+        const width = createSignal("100%");
+        return <View style={{ [width]: width }} />;
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_STYLE_OBJECT",
+        message: "compile() does not support computed or spread style properties yet."
+      }
+    });
+  });
+
+  it("rejects event handlers that are not identifiers", () => {
+    const result = compile(`
+      import { Button } from "@jue/jsx";
+
+      export function render() {
+        return <Button onPress={() => {}}>go</Button>;
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_EVENT_HANDLER",
+        message: "compile() requires event onPress to reference a named function."
       }
     });
   });

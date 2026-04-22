@@ -154,9 +154,18 @@ export function lowerBlockIRToBlueprint(
       continue;
     }
 
-    nodeParentIndex[index] = node.parent === null
-      ? INVALID_INDEX
-      : getNodeSlot(nodeSlotById, node.parent, "parent", node.id).value ?? INVALID_INDEX;
+    if (node.parent === null) {
+      nodeParentIndex[index] = INVALID_INDEX;
+    } else {
+      // 原始 BlockIR 允许外部直接构造，所以这里不能像 Builder 一样假设 parent 一定合法。
+      // 一旦静默退成 INVALID_INDEX，后面的 Blueprint 就会把坏结构当成根节点继续跑下去。
+      const parentSlotResult = getNodeSlot(nodeSlotById, node.parent, "parent", node.id);
+      if (!parentSlotResult.ok) {
+        return parentSlotResult;
+      }
+
+      nodeParentIndex[index] = parentSlotResult.value;
+    }
 
     if (node.kind === "element") {
       nodeKind[index] = NODE_KIND_ELEMENT;

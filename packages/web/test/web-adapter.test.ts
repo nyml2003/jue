@@ -371,4 +371,137 @@ describe("@jue/web", () => {
     expect(pressed).toBe(1);
     expect(observedEventType).toBe("click");
   });
+
+  it("rejects invalid prop/style targets and unsupported event keys", () => {
+    const adapter = createWebHostAdapter();
+    const textNode = document.createTextNode("hello") as unknown as HostNode;
+
+    expect(adapter.setProp(textNode, "title", "x")).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "INVALID_PROP_TARGET",
+        message: "WebHostAdapter.setProp() expected an Element-compatible host node."
+      }
+    });
+
+    expect(adapter.setStyle(textNode, "width", "10px")).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "INVALID_STYLE_TARGET",
+        message: "WebHostAdapter.setStyle() expected an HTMLElement-compatible host node."
+      }
+    });
+
+    const button = document.createElement("button") as unknown as HostNode;
+    expect(adapter.setEvent(button, "onMadeUp" as never, null)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_EVENT_KEY",
+        message: "WebHostAdapter.setEvent() does not support event key onMadeUp."
+      }
+    });
+  });
+
+  it("clears prop/style values and can remove event listeners", () => {
+    const adapter = createWebHostAdapter();
+    const input = document.createElement("input");
+    input.value = "before";
+    const element = input as unknown as HostNode;
+
+    expect(adapter.setProp(element, "value", null)).toEqual({
+      ok: true,
+      value: undefined,
+      error: null
+    });
+    expect(input.value).toBe("");
+
+    expect(adapter.setStyle(element, "width", false)).toEqual({
+      ok: true,
+      value: undefined,
+      error: null
+    });
+    expect(input.style.width).toBe("");
+
+    let presses = 0;
+    expect(adapter.setEvent(element, "onPress", () => {
+      presses += 1;
+    }).ok).toBe(true);
+    input.click();
+    expect(presses).toBe(1);
+
+    expect(adapter.setEvent(element, "onPress", null)).toEqual({
+      ok: true,
+      value: undefined,
+      error: null
+    });
+    input.click();
+    expect(presses).toBe(1);
+  });
+
+  it("creates image and scroll primitives and rejects invalid host references", () => {
+    const adapter = createWebHostAdapter();
+
+    const imageResult = adapter.createNode("Image", 0);
+    const scrollResult = adapter.createNode("ScrollView", 0);
+    expect(imageResult.ok).toBe(true);
+    expect(scrollResult.ok).toBe(true);
+    if (!imageResult.ok || !scrollResult.ok) {
+      return;
+    }
+
+    expect((imageResult.value as unknown as HTMLImageElement).tagName).toBe("IMG");
+    expect((scrollResult.value as unknown as HTMLDivElement).style.overflow).toBe("auto");
+
+    const invalid = {} as HostNode;
+
+    expect(adapter.insert(invalid, imageResult.value, null)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "INVALID_HOST_NODE",
+        message: "WebHostAdapter.insert.parent() expected a DOM Node-compatible host reference."
+      }
+    });
+
+    expect(adapter.remove(invalid, imageResult.value)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "INVALID_HOST_NODE",
+        message: "WebHostAdapter.remove.parent() expected a DOM Node-compatible host reference."
+      }
+    });
+
+    expect(adapter.setText(invalid, "x")).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "INVALID_HOST_NODE",
+        message: "WebHostAdapter.setText.node() expected a DOM Node-compatible host reference."
+      }
+    });
+  });
+
+  it("normalizes onInput events with current target values", () => {
+    const adapter = createWebHostAdapter();
+    const input = document.createElement("input");
+    const hostInput = input as unknown as HostNode;
+    let observedValue = "";
+    let observedType = "";
+
+    expect(adapter.setEvent(hostInput, "onInput", (event) => {
+      const normalizedEvent = event as { value: string; type: string };
+      observedValue = normalizedEvent.value;
+      observedType = normalizedEvent.type;
+    }).ok).toBe(true);
+
+    input.value = "typed";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+
+    expect(observedValue).toBe("typed");
+    expect(observedType).toBe("input");
+  });
 });

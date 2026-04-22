@@ -1,11 +1,11 @@
 import type { HostPrimitive } from "@jue/shared";
 
-export const View = "View" as HostPrimitive;
-export const Text = "Text" as HostPrimitive;
-export const Button = "Button" as HostPrimitive;
-export const Input = "Input" as HostPrimitive;
-export const Image = "Image" as HostPrimitive;
-export const ScrollView = "ScrollView" as HostPrimitive;
+export const View = "View" as const satisfies HostPrimitive;
+export const Text = "Text" as const satisfies HostPrimitive;
+export const Button = "Button" as const satisfies HostPrimitive;
+export const Input = "Input" as const satisfies HostPrimitive;
+export const Image = "Image" as const satisfies HostPrimitive;
+export const ScrollView = "ScrollView" as const satisfies HostPrimitive;
 
 export type JueJsxPrimitive =
   | typeof View

@@ -299,7 +299,19 @@ function normalizeText(value: unknown): string {
     return "";
   }
 
-  return String(value);
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return String(value);
+  }
+
+  if (typeof value === "symbol") {
+    return value.description ?? "";
+  }
+
+  return Object.prototype.toString.call(value);
 }
 
 function isHostEventKey(value: string): value is typeof HOST_EVENT_KEYS[number] {

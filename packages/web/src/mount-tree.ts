@@ -131,7 +131,7 @@ export function mountTree(input: MountTreeInput): Result<MountedTree, MountBlock
 
   const adapter = createWebHostAdapter();
   const hostRoot = hostRootResult.value;
-  const nodes: HostNode[] = new Array(input.blueprint.nodeCount);
+  const nodes = new Array<HostNode>(input.blueprint.nodeCount);
 
   for (let index = 0; index < input.blueprint.nodeCount; index += 1) {
     const nodeResult = createBlueprintNode(input.blueprint, adapter, index);

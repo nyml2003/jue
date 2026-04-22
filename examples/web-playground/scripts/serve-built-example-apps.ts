@@ -1,4 +1,4 @@
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,7 +14,11 @@ const CONTENT_TYPES: Record<string, string> = {
   ".svg": "image/svg+xml; charset=utf-8"
 };
 
-const server = createServer(async (request, response) => {
+const server = createServer((request, response) => {
+  void handleRequest(request, response);
+});
+
+async function handleRequest(request: IncomingMessage, response: ServerResponse) {
   const requestUrl = new URL(request.url ?? "/", `http://${request.headers.host ?? "127.0.0.1"}`);
   const pathname = requestUrl.pathname === "/" ? "/index.html" : requestUrl.pathname;
   const safePath = normalize(pathname).replace(/^(\.\.[/\\])+/, "");
@@ -34,7 +38,7 @@ const server = createServer(async (request, response) => {
     response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
     response.end("Not found");
   }
-});
+}
 
 server.listen(PORT, "127.0.0.1", () => {
   process.stdout.write(`Serving built example apps on http://127.0.0.1:${PORT}\n`);

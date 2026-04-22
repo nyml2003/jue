@@ -1,12 +1,13 @@
 import generateModule from "@babel/generator";
 import * as t from "@babel/types";
+import type { Blueprint } from "@jue/runtime-core";
 import { err, ok, type Result } from "@jue/shared";
 
 import { lowerBlockIRToBlueprint } from "../block-ir";
 import { compileSourceToBlockIR, type CompileToBlockIRError } from "./compile-to-block-ir";
 import { parseModule } from "./parse";
 
-type GenerateFunction = typeof import("@babel/generator").default;
+type GenerateFunction = typeof generateModule;
 const generate = resolveGenerateFunction(generateModule);
 
 export interface CompiledModule {
@@ -203,7 +204,7 @@ function isRenderFunctionStatement(statement: t.Statement): boolean {
     statement.declaration.id?.name === "render";
 }
 
-function serializeBlueprint(blueprint: import("@jue/runtime-core").Blueprint): SerializedBlueprint {
+function serializeBlueprint(blueprint: Blueprint): SerializedBlueprint {
   return {
     nodeCount: blueprint.nodeCount,
     nodeKind: Array.from(blueprint.nodeKind),

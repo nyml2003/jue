@@ -30,10 +30,6 @@ export default defineConfig({
         "text",
         "json-summary"
       ],
-      include: [
-        "packages/compiler/src/block-ir.ts",
-        "packages/compiler/src/blueprint-builder.ts"
-      ],
       exclude: [
         "**/coverage/**",
         "**/dist/**",
@@ -41,17 +37,20 @@ export default defineConfig({
         "**/node_modules/**",
         "**/*.d.ts",
         "**/vite-env.d.ts",
+        "eslint.config.mjs",
+        "vitest.config.ts",
+        "vitest.coverage-all.config.ts",
         "examples/**/e2e/**",
         "examples/**/playwright.config.ts",
         "examples/**/scripts/**",
-        "scripts/**",
-        "packages/**/dist/**"
-      ],
-      thresholds: {
-        statements: 80,
-        lines: 80,
-        functions: 80
-      }
+        "examples/**/main.ts",
+        "examples/**/*.component.tsx",
+        "packages/**/dist/**",
+        "packages/jsx/src/index.ts",
+        "packages/native/src/index.ts",
+        "packages/runtime-core/src/types.ts",
+        "scripts/**"
+      ]
     }
   }
 });

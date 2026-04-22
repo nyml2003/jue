@@ -387,10 +387,42 @@ function validateBuilderState(
       });
     }
 
+    const bindingNode = nodeById.get(binding.node);
+    if (!bindingNode) {
+      return err({
+        code: "BUILDER_BINDING_NODE_MISSING",
+        message: `Binding references missing node ${binding.node}.`
+      });
+    }
+
     switch (binding.kind) {
       case "text":
+        // Text binding 只能命中文本节点；如果把它绑到 element，上层 authoring 看起来能过，
+        // 但 runtime 最终只会在错误节点类型上兜底，问题会被拖得更晚才暴露。
+        if (bindingNode.kind !== "text") {
+          return err({
+            code: "BUILDER_BINDING_TARGET_KIND_INVALID",
+            message: `Text binding must target a text node, got ${bindingNode.kind} node ${binding.node}.`
+          });
+        }
+
+        if (binding.signal < 0 || binding.signal >= signalCount) {
+          return err({
+            code: "BUILDER_SIGNAL_OUT_OF_RANGE",
+            message: `Binding references signal slot ${binding.signal}, but signalCount is ${signalCount}.`
+          });
+        }
+        break;
       case "prop":
       case "style":
+        // prop / style 都依赖宿主 element 语义；如果目标是 text node，Web adapter 只会在更后面失败。
+        if (bindingNode.kind !== "element") {
+          return err({
+            code: "BUILDER_BINDING_TARGET_KIND_INVALID",
+            message: `${binding.kind === "prop" ? "Prop" : "Style"} binding must target an element node, got ${bindingNode.kind} node ${binding.node}.`
+          });
+        }
+
         if (binding.signal < 0 || binding.signal >= signalCount) {
           return err({
             code: "BUILDER_SIGNAL_OUT_OF_RANGE",
@@ -399,13 +431,20 @@ function validateBuilderState(
         }
         break;
       case "event":
+        // 事件绑定也必须提前卡在 element 上，避免把“不可能挂事件”的节点送进 adapter。
+        if (bindingNode.kind !== "element") {
+          return err({
+            code: "BUILDER_BINDING_TARGET_KIND_INVALID",
+            message: `Event binding must target an element node, got ${bindingNode.kind} node ${binding.node}.`
+          });
+        }
         break;
     }
   }
 
   for (const region of regions) {
     switch (region.kind) {
-      case "conditional":
+      case "conditional": {
         if (!nodeIds.has(region.anchorStartNode)) {
           return err({
             code: "BUILDER_REGION_ANCHOR_MISSING",
@@ -418,6 +457,32 @@ function validateBuilderState(
             code: "BUILDER_REGION_ANCHOR_MISSING",
             message: `Conditional region references missing anchorEndNode ${region.anchorEndNode}.`
           });
+        }
+
+        if (region.branches.length === 0) {
+          return err({
+            code: "BUILDER_REGION_BRANCH_INVALID",
+            message: "Conditional region must define at least one branch."
+          });
+        }
+
+        const conditionalAnchorRange = validateRegionAnchorRange(
+          "Conditional region",
+          region.anchorStartNode,
+          region.anchorEndNode
+        );
+        if (!conditionalAnchorRange.ok) {
+          return conditionalAnchorRange;
+        }
+
+        const conditionalAnchorBoundary = validateSharedParentBoundary(
+          nodeById,
+          "Conditional region",
+          region.anchorStartNode,
+          region.anchorEndNode
+        );
+        if (!conditionalAnchorBoundary.ok) {
+          return conditionalAnchorBoundary;
         }
 
         for (const branch of region.branches) {
@@ -434,9 +499,31 @@ function validateBuilderState(
               message: `Conditional region references missing branch endNode ${branch.endNode}.`
             });
           }
+
+          const branchRange = validateConditionalBranchRange(
+            region.anchorStartNode,
+            region.anchorEndNode,
+            branch.startNode,
+            branch.endNode
+          );
+          if (!branchRange.ok) {
+            return branchRange;
+          }
+
+          const branchBoundary = validateConditionalBranchBoundary(
+            nodeById,
+            region.anchorStartNode,
+            region.anchorEndNode,
+            branch.startNode,
+            branch.endNode
+          );
+          if (!branchBoundary.ok) {
+            return branchBoundary;
+          }
         }
         break;
-      case "nested-block":
+      }
+      case "nested-block": {
         if (!nodeIds.has(region.anchorStartNode)) {
           return err({
             code: "BUILDER_REGION_ANCHOR_MISSING",
@@ -449,6 +536,25 @@ function validateBuilderState(
             code: "BUILDER_REGION_ANCHOR_MISSING",
             message: `Nested block region references missing anchorEndNode ${region.anchorEndNode}.`
           });
+        }
+
+        const nestedAnchorRange = validateRegionAnchorRange(
+          "Nested block region",
+          region.anchorStartNode,
+          region.anchorEndNode
+        );
+        if (!nestedAnchorRange.ok) {
+          return nestedAnchorRange;
+        }
+
+        const nestedAnchorBoundary = validateSharedParentBoundary(
+          nodeById,
+          "Nested block region",
+          region.anchorStartNode,
+          region.anchorEndNode
+        );
+        if (!nestedAnchorBoundary.ok) {
+          return nestedAnchorBoundary;
         }
 
         if (region.childBlockSlot < 0) {
@@ -465,7 +571,8 @@ function validateBuilderState(
           });
         }
         break;
-      case "keyed-list":
+      }
+      case "keyed-list": {
         if (!nodeIds.has(region.anchorStartNode)) {
           return err({
             code: "BUILDER_REGION_ANCHOR_MISSING",
@@ -479,8 +586,28 @@ function validateBuilderState(
             message: `Keyed list region references missing anchorEndNode ${region.anchorEndNode}.`
           });
         }
+
+        const keyedAnchorRange = validateRegionAnchorRange(
+          "Keyed list region",
+          region.anchorStartNode,
+          region.anchorEndNode
+        );
+        if (!keyedAnchorRange.ok) {
+          return keyedAnchorRange;
+        }
+
+        const keyedAnchorBoundary = validateSharedParentBoundary(
+          nodeById,
+          "Keyed list region",
+          region.anchorStartNode,
+          region.anchorEndNode
+        );
+        if (!keyedAnchorBoundary.ok) {
+          return keyedAnchorBoundary;
+        }
         break;
-      case "virtual-list":
+      }
+      case "virtual-list": {
         if (!nodeIds.has(region.anchorStartNode)) {
           return err({
             code: "BUILDER_REGION_ANCHOR_MISSING",
@@ -494,9 +621,124 @@ function validateBuilderState(
             message: `Virtual list region references missing anchorEndNode ${region.anchorEndNode}.`
           });
         }
+
+        const virtualAnchorRange = validateRegionAnchorRange(
+          "Virtual list region",
+          region.anchorStartNode,
+          region.anchorEndNode
+        );
+        if (!virtualAnchorRange.ok) {
+          return virtualAnchorRange;
+        }
+
+        const virtualAnchorBoundary = validateSharedParentBoundary(
+          nodeById,
+          "Virtual list region",
+          region.anchorStartNode,
+          region.anchorEndNode
+        );
+        if (!virtualAnchorBoundary.ok) {
+          return virtualAnchorBoundary;
+        }
         break;
+      }
     }
   }
 
   return ok(undefined);
+}
+
+function validateRegionAnchorRange(
+  label: string,
+  startNode: number,
+  endNode: number
+): Result<void, BlueprintBuilderError> {
+  // lowering/runtime 都把 region 当成有序 node-slot 区间来消费。
+  // 一旦 anchor 自己都是倒的，后续所有 branch / child / window 推导都会建立在坏范围上。
+  if (startNode <= endNode) {
+    return ok(undefined);
+  }
+
+  return err({
+    code: "BUILDER_REGION_ANCHOR_INVALID",
+    message: `${label} anchor range ${startNode}-${endNode} is reversed.`
+  });
+}
+
+function validateConditionalBranchRange(
+  anchorStartNode: number,
+  anchorEndNode: number,
+  branchStartNode: number,
+  branchEndNode: number
+): Result<void, BlueprintBuilderError> {
+  if (branchStartNode > branchEndNode) {
+    return err({
+      code: "BUILDER_REGION_BRANCH_INVALID",
+      message: `Conditional region branch range ${branchStartNode}-${branchEndNode} is reversed.`
+    });
+  }
+
+  // conditional branch 最终会被当成 anchor 内的一段连续范围处理。
+  // 如果 branch 跑到 anchor 外面，builder 和 runtime 对“这个 region 管哪一段节点”的边界会直接不一致。
+  if (branchStartNode < anchorStartNode || branchEndNode > anchorEndNode) {
+    return err({
+      code: "BUILDER_REGION_BRANCH_INVALID",
+      message: `Conditional region branch range ${branchStartNode}-${branchEndNode} must stay within anchor range ${anchorStartNode}-${anchorEndNode}.`
+    });
+  }
+
+  return ok(undefined);
+}
+
+function validateSharedParentBoundary(
+  nodeById: ReadonlyMap<number, IRNode>,
+  label: string,
+  startNode: number,
+  endNode: number
+): Result<void, BlueprintBuilderError> {
+  const start = nodeById.get(startNode);
+  const end = nodeById.get(endNode);
+  if (!start || !end) {
+    return ok(undefined);
+  }
+
+  // mountRange()/disposeRange() 会把 region range 当成同一父边界下的一段连续节点来处理。
+  // 如果 anchor 自己都不在同一级 parent 下，runtime 根本没有稳定的“这段范围属于谁”解释。
+  if (start.parent === end.parent) {
+    return ok(undefined);
+  }
+
+  return err({
+    code: "BUILDER_REGION_BOUNDARY_INVALID",
+    message: `${label} anchor nodes ${startNode} and ${endNode} must share the same parent boundary.`
+  });
+}
+
+function validateConditionalBranchBoundary(
+  nodeById: ReadonlyMap<number, IRNode>,
+  anchorStartNode: number,
+  anchorEndNode: number,
+  branchStartNode: number,
+  branchEndNode: number
+): Result<void, BlueprintBuilderError> {
+  const anchorStart = nodeById.get(anchorStartNode);
+  const anchorEnd = nodeById.get(anchorEndNode);
+  const branchStart = nodeById.get(branchStartNode);
+  const branchEnd = nodeById.get(branchEndNode);
+  if (!anchorStart || !anchorEnd || !branchStart || !branchEnd) {
+    return ok(undefined);
+  }
+
+  if (
+    branchStart.parent === branchEnd.parent &&
+    branchStart.parent === anchorStart.parent &&
+    branchEnd.parent === anchorEnd.parent
+  ) {
+    return ok(undefined);
+  }
+
+  return err({
+    code: "BUILDER_REGION_BOUNDARY_INVALID",
+    message: `Conditional region branch range ${branchStartNode}-${branchEndNode} must share the same parent boundary as anchor range ${anchorStartNode}-${anchorEndNode}.`
+  });
 }

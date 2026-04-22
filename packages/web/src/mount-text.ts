@@ -5,7 +5,7 @@ import {
 import { BindingOpcode, Lane, err, ok, type Result } from "@jue/shared";
 
 import { createWebHostAdapter } from "./adapter";
-import { mountBlock, type MountBlockError } from "./mount-block";
+import { mountBlock } from "./mount-block";
 
 export interface MountTextOptions {
   readonly lane?: Lane;

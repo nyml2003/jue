@@ -6,7 +6,7 @@ import { createBlueprintBuilder, type BlueprintBuilder } from "../blueprint-buil
 import type { BlockIR } from "../block-ir";
 import { parseModule } from "./parse";
 
-type TraverseFunction = typeof import("@babel/traverse").default;
+type TraverseFunction = typeof traverseModule;
 const traverse = resolveTraverseFunction(traverseModule);
 
 // FrontendState keeps the author-facing symbol table separate from the builder-facing slot table.
@@ -601,6 +601,13 @@ function lowerStyleObjectAttribute(
       return styleKeyResult;
     }
 
+    if (!t.isExpression(property.value)) {
+      return err({
+        code: "UNSUPPORTED_STYLE_OBJECT",
+        message: `compile() does not support style.${styleKeyResult.value} with non-expression value.`
+      });
+    }
+
     const staticExpression = readStaticExpressionValue(property.value);
     if (staticExpression.kind === "error") {
       return err({
@@ -621,13 +628,6 @@ function lowerStyleObjectAttribute(
 
       bindStaticAttributeValue(state, node, `style:${styleKeyResult.value}`, staticExpression.value);
       continue;
-    }
-
-    if (!t.isExpression(property.value)) {
-      return err({
-        code: "UNSUPPORTED_STYLE_OBJECT",
-        message: `compile() does not support style.${styleKeyResult.value} with non-expression value.`
-      });
     }
 
     // Non-static style members are limited to signal identifiers for now. Allowing arbitrary

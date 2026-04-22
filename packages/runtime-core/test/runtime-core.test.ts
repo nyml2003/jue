@@ -22,6 +22,7 @@ import {
   completeKeyedListReconcile,
   completeNestedBlockReplace,
   completeVirtualListWindowUpdate,
+  commitResourceError,
   commitResourceValue,
   clearDirty,
   createBlockInstance,
@@ -185,6 +186,42 @@ describe("@jue/runtime-core", () => {
     });
     expect(state.status[0]).toBe(ResourceStatus.READY);
     expect(state.valueRef[0]).toEqual({ id: 1 });
+  });
+
+  it("commits resource errors and rejects stale or out-of-range resource operations", () => {
+    const state = createResourceState(1);
+
+    expect(beginResourceRequest(state, 4, Lane.VISIBLE_UPDATE)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "RESOURCE_SLOT_OUT_OF_RANGE",
+        message: "Resource slot 4 is out of range for size 1."
+      }
+    });
+
+    const begin = beginResourceRequest(state, 0, Lane.VISIBLE_UPDATE);
+    expect(begin.ok).toBe(true);
+    if (!begin.ok) {
+      return;
+    }
+
+    expect(commitResourceValue(state, 0, begin.value + 1, { stale: true })).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "STALE_RESOURCE_VERSION",
+        message: `Resource slot 0 expected version ${begin.value}, got ${begin.value + 1}.`
+      }
+    });
+
+    expect(commitResourceError(state, 0, begin.value, new Error("boom"))).toEqual({
+      ok: true,
+      value: true,
+      error: null
+    });
+    expect(state.status[0]).toBe(ResourceStatus.ERROR);
+    expect(state.errorRef[0]).toBeInstanceOf(Error);
   });
 
   it("schedules binding slots from signal dependencies", () => {

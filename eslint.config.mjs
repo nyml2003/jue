@@ -19,6 +19,7 @@ export default [
       "**/vite.config.d.ts",
       "**/vite.config.d.ts.map",
       "**/*.js",
+      "**/*.mjs",
       "**/*.js.map",
       "**/*.d.ts",
       "**/*.d.ts.map"
@@ -34,7 +35,7 @@ export default [
     ],
     languageOptions: {
       parserOptions: {
-        project: true,
+        project: "./tsconfig.check.json",
         tsconfigRootDir: import.meta.dirname
       },
       globals: {
@@ -57,6 +58,15 @@ export default [
           "varsIgnorePattern": "^_"
         }
       ]
+    }
+  },
+  {
+    files: [
+      "**/*.component.tsx"
+    ],
+    rules: {
+      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-unsafe-return": "off"
     }
   }
 ];

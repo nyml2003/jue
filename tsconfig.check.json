@@ -11,10 +11,12 @@
     ]
   },
   "include": [
+    "*.ts",
     "packages/**/*.ts",
     "packages/**/*.tsx",
     "examples/**/*.ts",
-    "examples/**/*.tsx"
+    "examples/**/*.tsx",
+    "scripts/**/*.ts"
   ],
   "exclude": [
     "dist",

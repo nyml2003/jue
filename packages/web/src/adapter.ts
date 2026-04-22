@@ -7,13 +7,6 @@ import type {
 } from "@jue/runtime-core";
 import { err, type Result, type HostEventKey, type HostPrimitive, type HostPropKey, type HostStyleKey } from "@jue/shared";
 
-function notImplemented(method: string): Result<never, HostAdapterError> {
-  return err({
-    code: "NOT_IMPLEMENTED",
-    message: `WebHostAdapter.${method}() is not implemented yet.`
-  });
-}
-
 export class WebHostAdapter implements HostAdapter {
   readonly #eventListeners = new WeakMap<Node, Map<HostEventKey, EventListener>>();
 
@@ -106,7 +99,7 @@ export class WebHostAdapter implements HostAdapter {
     if (_prop in nodeResult.value) {
       Reflect.set(nodeResult.value, _prop, _value);
     } else {
-      nodeResult.value.setAttribute(_prop, String(_value));
+      nodeResult.value.setAttribute(_prop, stringifyHostValue(_value));
     }
 
     return { ok: true, value: undefined, error: null };
@@ -130,7 +123,7 @@ export class WebHostAdapter implements HostAdapter {
       return { ok: true, value: undefined, error: null };
     }
 
-    const styleValue = typeof _value === "number" ? String(_value) : String(_value);
+    const styleValue = stringifyHostValue(_value);
     nodeResult.value.style.setProperty(toCssPropertyName(_styleKey), styleValue);
     return { ok: true, value: undefined, error: null };
   }
@@ -229,6 +222,22 @@ function toCssPropertyName(styleKey: HostStyleKey): string {
   return styleKey.startsWith("--")
     ? styleKey
     : styleKey.replaceAll(/[A-Z]/g, match => `-${match.toLowerCase()}`);
+}
+
+function stringifyHostValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return String(value);
+  }
+
+  if (typeof value === "symbol") {
+    return value.description ?? "";
+  }
+
+  return Object.prototype.toString.call(value);
 }
 
 function toDomEventName(eventKey: HostEventKey): string | null {

@@ -3,14 +3,18 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { tsImport } from "tsx/esm/api";
+import type { compileModule as compileModuleFn } from "../packages/compiler/src/frontend/index";
 
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const EXAMPLE_SRC = join(REPO_ROOT, "examples", "web-playground", "apps");
+type CompilerModule = {
+  readonly compileModule: typeof compileModuleFn;
+};
 
 async function main() {
   const compilerPath = fileURLToPath(new URL("../packages/compiler/src/frontend/index.ts", import.meta.url));
   const compilerUrl = pathToFileURL(compilerPath).href;
-  const { compileModule } = await tsImport(compilerUrl, import.meta.url);
+  const { compileModule } = await tsImport(compilerUrl, import.meta.url) as CompilerModule;
   const sourcePaths = await collectComponentSourcePaths(EXAMPLE_SRC);
 
   for (const sourcePath of sourcePaths) {

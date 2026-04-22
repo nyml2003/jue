@@ -10,13 +10,16 @@
     "typecheck": "pnpm exec tsc -p tsconfig.check.json --noEmit --pretty false",
     "lint": "eslint .",
     "test": "node ./node_modules/vitest/vitest.mjs run",
+    "test:coverage:d1": "pnpm exec vitest run --coverage",
+    "test:coverage:all": "pnpm exec vitest run --coverage --config vitest.coverage-all.config.ts",
     "test:e2e": "pnpm --filter @jue/web-playground test:e2e",
     "dev": "pnpm --filter @jue/web-playground preview",
     "bench": "pnpm --filter @jue/web-playground run build"
   },
   "devDependencies": {
-    "@types/node": "^24.5.2",
     "@eslint/js": "^9.25.0",
+    "@types/node": "^24.5.2",
+    "@vitest/coverage-v8": "^3.2.4",
     "esbuild": "^0.25.3",
     "eslint": "^9.25.0",
     "globals": "^16.0.0",
