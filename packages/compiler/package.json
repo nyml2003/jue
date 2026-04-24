@@ -9,9 +9,21 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./builder": {
+      "types": "./dist/builder.d.ts",
+      "import": "./dist/builder.js"
+    },
     "./frontend": {
       "types": "./dist/frontend/index.d.ts",
       "import": "./dist/frontend/index.js"
+    },
+    "./ir": {
+      "types": "./dist/ir.d.ts",
+      "import": "./dist/ir.js"
+    },
+    "./lowering": {
+      "types": "./dist/lowering.d.ts",
+      "import": "./dist/lowering.js"
     }
   },
   "dependencies": {
@@ -23,7 +35,7 @@
     "@jue/shared": "workspace:*"
   },
   "scripts": {
-    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('../../node_modules/.cache/jue/compiler',{recursive:true,force:true})\" && esbuild src/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/index.js --sourcemap && esbuild src/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --minify --outfile=dist/index.min.js && esbuild src/frontend/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/frontend/index.js --sourcemap && esbuild src/frontend/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --minify --outfile=dist/frontend/index.min.js && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('../../node_modules/.cache/jue/compiler',{recursive:true,force:true})\" && esbuild src/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/index.js --sourcemap && esbuild src/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --minify --outfile=dist/index.min.js && esbuild src/frontend/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/frontend/index.js --sourcemap && esbuild src/frontend/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --minify --outfile=dist/frontend/index.min.js && esbuild src/ir.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/ir.js --sourcemap && esbuild src/lowering.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/lowering.js --sourcemap && esbuild src/builder.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/builder.js --sourcemap && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

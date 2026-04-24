@@ -17,10 +17,10 @@ export interface BlueprintBuilder {
   element(type: HostPrimitive): number;
   text(value: string): number;
   append(parent: number, child: number): Result<void, BlueprintBuilderError>;
-  defineConditionalRegion(region: ConditionalRegionDefinition): void;
-  defineKeyedListRegion(region: KeyedListRegionDefinition): void;
-  defineNestedBlockRegion(region: NestedBlockRegionDefinition): void;
-  defineVirtualListRegion(region: VirtualListRegionDefinition): void;
+  defineConditionalRegion(region: ConditionalRegionDefinition): number;
+  defineKeyedListRegion(region: KeyedListRegionDefinition): number;
+  defineNestedBlockRegion(region: NestedBlockRegionDefinition): number;
+  defineVirtualListRegion(region: VirtualListRegionDefinition): number;
   bindText(node: number, signal: number): void;
   bindProp(node: number, key: string, signal: number): void;
   bindStyle(node: number, key: string, signal: number): void;
@@ -152,6 +152,7 @@ export function createBlueprintBuilder(): BlueprintBuilder {
         anchorEndNode: region.anchorEndNode,
         branches: [...region.branches]
       });
+      return regions.length - 1;
     },
     defineKeyedListRegion(region) {
       regions.push({
@@ -159,6 +160,7 @@ export function createBlueprintBuilder(): BlueprintBuilder {
         anchorStartNode: region.anchorStartNode,
         anchorEndNode: region.anchorEndNode
       });
+      return regions.length - 1;
     },
     defineNestedBlockRegion(region) {
       regions.push({
@@ -169,6 +171,7 @@ export function createBlueprintBuilder(): BlueprintBuilder {
         childBlueprintSlot: region.childBlueprintSlot,
         mountMode: region.mountMode
       });
+      return regions.length - 1;
     },
     defineVirtualListRegion(region) {
       regions.push({
@@ -176,6 +179,7 @@ export function createBlueprintBuilder(): BlueprintBuilder {
         anchorStartNode: region.anchorStartNode,
         anchorEndNode: region.anchorEndNode
       });
+      return regions.length - 1;
     },
     bindText(node, signal) {
       bindings.push({

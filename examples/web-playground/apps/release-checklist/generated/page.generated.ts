@@ -19,6 +19,9 @@ function getNotifyOpsCount() {
   return notifyOpsCount;
 }
 
+    
+
+    
     const blueprintResult = createBlueprint({
       nodeCount: 33,
       nodeKind: new Uint8Array([1,1,1,2,1,2,1,2,1,1,2,1,2,1,2,1,2,1,1,1,2,1,2,1,1,2,1,2,1,1,2,1,2]),
@@ -49,8 +52,12 @@ function getNotifyOpsCount() {
       throw new Error(blueprintResult.error.message);
     }
 
-    export const blueprint = blueprintResult.value;
+    const blueprint = blueprintResult.value;
+  
+    export { blueprint };
     export const signalCount = 31;
     export const initialSignalValues = ["release-page","release-shell","SPRINT 24.3","Release Checklist","A more typical shipping page with rollout context, clear ownership, and a final readiness branch.","release-badge release-badge--ready","Ready for rollout","Release owner","Client platform","Primary risk","Cache invalidation lag","Deployment window","21:00-21:20 UTC","release-button release-button--primary","release-button release-button--secondary","All blocking checks are green. Proceed with staged rollout.","release-eyebrow","release-title","release-summary","release-row","release-branch release-branch--ready","release-grid","release-card","release-card-label","release-card-value","release-card","release-card-label","release-card-value","release-card","release-card-label","release-card-value"];
+    export const keyedListDescriptors = [];
+    export const virtualListDescriptors = [];
     export const handlers = { "handleOpenRunbook": handleOpenRunbook, "handleNotifyOps": handleNotifyOps, "getOpenRunbookCount": getOpenRunbookCount, "getNotifyOpsCount": getNotifyOpsCount };
   

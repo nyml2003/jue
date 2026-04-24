@@ -1039,6 +1039,87 @@ describe("@jue/compiler", () => {
     expect(Array.from(result.value.regionBranchRangeCount)).toEqual([2]);
   });
 
+  it("compiles a List JSX primitive into a keyed list region", () => {
+    const result = compile(`
+      import { List, Text, View, createSignal } from "@jue/jsx";
+
+      export function render() {
+        const items = createSignal([
+          { id: "a", label: "Alpha" },
+          { id: "b", label: "Bravo" }
+        ]);
+
+        return (
+          <View>
+            <List each={items} by={item => item.id}>
+              {item => <Text>{item.label}</Text>}
+            </List>
+          </View>
+        );
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(Array.from(result.value.regionType)).toEqual([1]);
+  });
+
+  it("compiles a VirtualList JSX primitive into a virtual list region", () => {
+    const result = compile(`
+      import { Text, View, VirtualList, createSignal } from "@jue/jsx";
+
+      export function render() {
+        const rows = createSignal([
+          { id: "0", label: "Row 00" },
+          { id: "1", label: "Row 01" },
+          { id: "2", label: "Row 02" }
+        ]);
+
+        return (
+          <View>
+            <VirtualList each={rows} by={row => row.id} estimateSize={() => 44} overscan={1}>
+              {row => <Text>{row.label}</Text>}
+            </VirtualList>
+          </View>
+        );
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(Array.from(result.value.regionType)).toEqual([3]);
+  });
+
+  it("rejects structure primitives as the render root", () => {
+    const result = compile(`
+      import { List, Text, createSignal } from "@jue/jsx";
+
+      export function render() {
+        const items = createSignal([{ id: "a", label: "Alpha" }]);
+        return (
+          <List each={items} by={item => item.id}>
+            {item => <Text>{item.label}</Text>}
+          </List>
+        );
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_ROOT_SHAPE",
+        message: "compile() currently requires JSX tag <List> to appear inside a host element."
+      }
+    });
+  });
+
   it("compiles createSignal declarations into signal slots and initial values", () => {
     const result = compile(`
       import { View, Text, createSignal } from "@jue/jsx";
@@ -1074,6 +1155,82 @@ describe("@jue/compiler", () => {
     }
 
     expect(result.value.signalToBindingCount).toEqual(new Uint32Array([1]));
+  });
+
+  it("supports createSignal initializers referenced through local const aliases", () => {
+    const result = compile(`
+      import { Text, View, createSignal } from "@jue/jsx";
+
+      export function render() {
+        const rowsSeed = [
+          { id: "row-00", label: "Row 00" },
+          { id: "row-01", label: "Row 01" }
+        ];
+        const rows = createSignal(rowsSeed);
+
+        return (
+          <View>
+            <Text>{rows}</Text>
+          </View>
+        );
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(Array.from(result.value.signalToBindingCount)).toEqual([1]);
+  });
+
+  it("supports static Array.from createSignal initializers", () => {
+    const result = compile(`
+      import { Text, View, createSignal } from "@jue/jsx";
+
+      export function render() {
+        const rows = createSignal(Array.from({ length: 3 }, (_, i) => ({
+          id: \`row-\${i}\`,
+          label: \`Row \${i}\`
+        })));
+
+        return (
+          <View>
+            <Text>{rows}</Text>
+          </View>
+        );
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(Array.from(result.value.signalToBindingCount)).toEqual([1]);
+  });
+
+  it("supports template literal signal initializers with static interpolation", () => {
+    const result = compile(`
+      import { Text, View, createSignal } from "@jue/jsx";
+
+      export function render() {
+        const label = createSignal(\`Row \${2}\`);
+
+        return (
+          <View>
+            <Text>{label}</Text>
+          </View>
+        );
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(Array.from(result.value.signalToBindingCount)).toEqual([1]);
   });
 
   it("rejects identifier bindings that are not declared with createSignal", () => {
@@ -1129,6 +1286,169 @@ describe("@jue/compiler", () => {
       error: {
         code: "UNSUPPORTED_JSX_SPREAD",
         message: "compile() does not support JSX spread attributes yet."
+      }
+    });
+  });
+
+  it("rejects List primitives that omit by selectors", () => {
+    const result = compile(`
+      import { List, Text, View, createSignal } from "@jue/jsx";
+
+      export function render() {
+        const items = createSignal([{ id: "a", label: "Alpha" }]);
+        return (
+          <View>
+            <List each={items}>
+              {item => <Text>{item.label}</Text>}
+            </List>
+          </View>
+        );
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_COMPONENT_CALL",
+        message: "compile() requires structure primitive attribute by."
+      }
+    });
+  });
+
+  it("rejects List primitives that omit each sources", () => {
+    const result = compile(`
+      import { List, Text, View, createSignal } from "@jue/jsx";
+
+      export function render() {
+        const items = createSignal([{ id: "a", label: "Alpha" }]);
+        return (
+          <View>
+            <List by={item => item.id}>
+              {item => <Text>{item.label}</Text>}
+            </List>
+          </View>
+        );
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_COMPONENT_CALL",
+        message: "compile() requires structure primitive attribute each."
+      }
+    });
+  });
+
+  it("rejects VirtualList primitives with non-static overscan values", () => {
+    const result = compile(`
+      import { Text, View, VirtualList, createSignal } from "@jue/jsx";
+
+      export function render() {
+        const rows = createSignal([{ id: "0", label: "Row 00" }]);
+        const overscan = createSignal(2);
+        return (
+          <View>
+            <VirtualList each={rows} by={row => row.id} estimateSize={() => 44} overscan={overscan}>
+              {row => <Text>{row.label}</Text>}
+            </VirtualList>
+          </View>
+        );
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_COMPONENT_CALL",
+        message: "compile() requires <VirtualList>.overscan to be a static numeric literal or arrow function returning one."
+      }
+    });
+  });
+
+  it("rejects List selectors that are not direct property paths", () => {
+    const result = compile(`
+      import { List, Text, View, createSignal } from "@jue/jsx";
+
+      export function render() {
+        const items = createSignal([{ id: "a", label: "Alpha" }]);
+        return (
+          <View>
+            <List each={items} by={item => item.id.toUpperCase()}>
+              {item => <Text>{item.label}</Text>}
+            </List>
+          </View>
+        );
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_COMPONENT_CALL",
+        message: "compile() only supports <List>.by selectors of the form item => item.id or item => item.meta.id."
+      }
+    });
+  });
+
+  it("rejects List primitives whose children are not render callbacks", () => {
+    const result = compile(`
+      import { List, Text, View, createSignal } from "@jue/jsx";
+
+      export function render() {
+        const items = createSignal([{ id: "a", label: "Alpha" }]);
+        return (
+          <View>
+            <List each={items} by={item => item.id}>
+              <Text>bad</Text>
+            </List>
+          </View>
+        );
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_COMPONENT_CALL",
+        message: "compile() requires <List> children to be a single arrow-function render callback."
+      }
+    });
+  });
+
+  it("rejects event handlers inside List template callbacks", () => {
+    const result = compile(`
+      import { Button, List, Text, View, createSignal } from "@jue/jsx";
+
+      function handlePress() {}
+
+      export function render() {
+        const items = createSignal([{ id: "a", label: "Alpha" }]);
+        return (
+          <View>
+            <List each={items} by={item => item.id}>
+              {item => (
+                <Button onPress={handlePress}>
+                  <Text>{item.label}</Text>
+                </Button>
+              )}
+            </List>
+          </View>
+        );
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_EVENT_HANDLER",
+        message: "compile() does not support event handlers inside List or VirtualList template callbacks yet."
       }
     });
   });
@@ -1192,7 +1512,7 @@ describe("@jue/compiler", () => {
       import { View, createSignal } from "@jue/jsx";
 
       export function render() {
-        const value = createSignal({ a: 1 });
+        const value = createSignal(new Map());
         return <View />;
       }
     `);
@@ -1202,7 +1522,7 @@ describe("@jue/compiler", () => {
       value: null,
       error: {
         code: "UNSUPPORTED_SIGNAL_INITIALIZER",
-        message: "compile() only supports literal createSignal() initializers, got ObjectExpression."
+        message: "compile() only supports literal createSignal() initializers, got NewExpression."
       }
     });
   });

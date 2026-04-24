@@ -61,6 +61,18 @@ importers:
         specifier: ^5.46.1
         version: 5.46.1
 
+  packages/bench:
+    dependencies:
+      '@jue/examples':
+        specifier: workspace:*
+        version: link:../examples
+      '@jue/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@jue/testkit':
+        specifier: workspace:*
+        version: link:../testkit
+
   packages/compiler:
     dependencies:
       '@babel/generator':
@@ -89,6 +101,20 @@ importers:
         specifier: ^7.28.0
         version: 7.28.0
 
+  packages/examples: {}
+
+  packages/inspect:
+    dependencies:
+      '@jue/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+      '@jue/examples':
+        specifier: workspace:*
+        version: link:../examples
+      '@jue/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/jsx:
     dependencies:
       '@jue/shared':
@@ -111,6 +137,21 @@ importers:
         version: link:../shared
 
   packages/shared: {}
+
+  packages/testkit:
+    dependencies:
+      '@jue/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+      '@jue/examples':
+        specifier: workspace:*
+        version: link:../examples
+      '@jue/inspect':
+        specifier: workspace:*
+        version: link:../inspect
+      '@jue/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/web:
     dependencies:

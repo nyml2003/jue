@@ -19,6 +19,9 @@ function getPageTimelineCount() {
   return pageTimelineCount;
 }
 
+    
+
+    
     const blueprintResult = createBlueprint({
       nodeCount: 33,
       nodeKind: new Uint8Array([1,1,1,2,1,2,1,2,1,1,2,1,2,1,2,1,2,1,1,1,2,1,2,1,1,2,1,2,1,1,2,1,2]),
@@ -49,8 +52,12 @@ function getPageTimelineCount() {
       throw new Error(blueprintResult.error.message);
     }
 
-    export const blueprint = blueprintResult.value;
+    const blueprint = blueprintResult.value;
+  
+    export { blueprint };
     export const signalCount = 31;
     export const initialSignalValues = ["incident-page","incident-shell","SEV-2 INCIDENT","API latency brief","A concise incident page with one conditional branch so the compiler path still exercises region lowering.","incident-badge incident-badge--warning","Degraded but stable","Incident owner","Platform runtime","Current mitigation","Traffic shifted to warm replicas","Last update","08:42 UTC","incident-button incident-button--primary","incident-button incident-button--ghost","Escalation remains open while p95 stays above 900 ms.","incident-eyebrow","incident-title","incident-summary","incident-row","incident-callout incident-callout--warning","incident-grid","incident-card","incident-card-label","incident-card-value","incident-card","incident-card-label","incident-card-value","incident-card","incident-card-label","incident-card-value"];
+    export const keyedListDescriptors = [];
+    export const virtualListDescriptors = [];
     export const handlers = { "handleAcknowledge": handleAcknowledge, "handlePageTimeline": handlePageTimeline, "getAcknowledgeCount": getAcknowledgeCount, "getPageTimelineCount": getPageTimelineCount };
   

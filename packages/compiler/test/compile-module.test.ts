@@ -61,6 +61,61 @@ describe("@jue/compiler compileModule", () => {
     expect(result.value.runtimeCode).toBe("");
     expect(result.value.handlerNames).toEqual([]);
   });
+
+  it("emits keyed list and virtual list descriptors for authored structure primitives", () => {
+    const result = compileModule(`
+      import { List, Text, View, VirtualList, createSignal } from "@jue/jsx";
+
+      export function render() {
+        const items = createSignal([
+          { id: "a", label: "Alpha" },
+          { id: "b", label: "Bravo" }
+        ]);
+        const rows = createSignal([
+          { id: "0", label: "Row 00" },
+          { id: "1", label: "Row 01" },
+          { id: "2", label: "Row 02" }
+        ]);
+
+        return (
+          <View>
+            <List each={items} by={item => item.id}>
+              {item => <Text className="item-label">{item.label}</Text>}
+            </List>
+            <VirtualList each={rows} by={row => row.id} estimateSize={() => 44} overscan={1}>
+              {row => <Text className="row-label">{row.label}</Text>}
+            </VirtualList>
+          </View>
+        );
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.value.keyedListDescriptors).toHaveLength(1);
+    expect(result.value.virtualListDescriptors).toHaveLength(1);
+    expect(result.value.keyedListDescriptors[0]).toMatchObject({
+      regionSlot: 0,
+      sourceSignalSlot: 0,
+      keyPath: ["id"]
+    });
+    expect(result.value.virtualListDescriptors[0]).toMatchObject({
+      regionSlot: 1,
+      sourceSignalSlot: 1,
+      keyPath: ["id"],
+      estimateSize: 44,
+      overscan: 1
+    });
+    expect(result.value.keyedListDescriptors[0]?.template.initialSignalValues).toEqual(["item-label"]);
+    expect(result.value.keyedListDescriptors[0]?.template.signalPaths).toEqual([null, ["label"]]);
+    expect(result.value.virtualListDescriptors[0]?.template.initialSignalValues).toEqual(["row-label"]);
+    expect(result.value.virtualListDescriptors[0]?.template.signalPaths).toEqual([null, ["label"]]);
+    expect(result.value.code).toContain("export const keyedListDescriptors");
+    expect(result.value.code).toContain("export const virtualListDescriptors");
+  });
 });
 
 describe("@jue/compiler root entry", () => {
@@ -75,4 +130,3 @@ describe("@jue/compiler root entry", () => {
     });
   });
 });
-

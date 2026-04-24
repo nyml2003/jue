@@ -4,7 +4,14 @@ import { err, type Result } from "@jue/shared";
 import { lowerBlockIRToBlueprint } from "../block-ir";
 import { compileSourceToBlockIR } from "./compile-to-block-ir";
 
-export { compileModule, type CompiledModule, type SerializedBlueprint } from "./compile-module";
+export {
+  compileModule,
+  type CompiledModule,
+  type SerializedBlueprint,
+  type SerializedKeyedListDescriptor,
+  type SerializedTemplateDescriptor,
+  type SerializedVirtualListDescriptor
+} from "./compile-module";
 
 export interface CompileOptions {
   readonly filename?: string;

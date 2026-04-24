@@ -8,13 +8,21 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./host-contract": {
+      "types": "./dist/host-contract.d.ts",
+      "import": "./dist/host-contract.js"
+    },
+    "./reactivity": {
+      "types": "./dist/reactivity.d.ts",
+      "import": "./dist/reactivity.js"
     }
   },
   "dependencies": {
     "@jue/shared": "workspace:*"
   },
   "scripts": {
-    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('../../node_modules/.cache/jue/runtime-core',{recursive:true,force:true})\" && esbuild src/index.ts --bundle --format=esm --platform=neutral --target=esnext --external:@jue/shared --outfile=dist/index.js --sourcemap && esbuild src/index.ts --bundle --format=esm --platform=neutral --target=esnext --external:@jue/shared --minify --outfile=dist/index.min.js && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('../../node_modules/.cache/jue/runtime-core',{recursive:true,force:true})\" && esbuild src/index.ts --bundle --format=esm --platform=neutral --target=esnext --external:@jue/shared --outfile=dist/index.js --sourcemap && esbuild src/index.ts --bundle --format=esm --platform=neutral --target=esnext --external:@jue/shared --minify --outfile=dist/index.min.js && esbuild src/reactivity.ts --bundle --format=esm --platform=neutral --target=esnext --external:@jue/shared --outfile=dist/reactivity.js --sourcemap && esbuild src/host-contract.ts --bundle --format=esm --platform=neutral --target=esnext --external:@jue/shared --outfile=dist/host-contract.js --sourcemap && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   }
 }

@@ -23,8 +23,26 @@
       "@jue/runtime-core": [
         "./packages/runtime-core/src/index.ts"
       ],
+      "@jue/runtime-core/reactivity": [
+        "./packages/runtime-core/src/reactivity.ts"
+      ],
+      "@jue/runtime-core/host-contract": [
+        "./packages/runtime-core/src/host-contract.ts"
+      ],
       "@jue/compiler": [
         "./packages/compiler/src/index.ts"
+      ],
+      "@jue/compiler/frontend": [
+        "./packages/compiler/src/frontend/index.ts"
+      ],
+      "@jue/compiler/ir": [
+        "./packages/compiler/src/ir.ts"
+      ],
+      "@jue/compiler/lowering": [
+        "./packages/compiler/src/lowering.ts"
+      ],
+      "@jue/compiler/builder": [
+        "./packages/compiler/src/builder.ts"
       ],
       "@jue/jsx": [
         "./packages/jsx/src/index.ts"
@@ -34,6 +52,18 @@
       ],
       "@jue/native": [
         "./packages/native/src/index.ts"
+      ],
+      "@jue/examples": [
+        "./packages/examples/src/index.ts"
+      ],
+      "@jue/inspect": [
+        "./packages/inspect/src/index.ts"
+      ],
+      "@jue/testkit": [
+        "./packages/testkit/src/index.ts"
+      ],
+      "@jue/bench": [
+        "./packages/bench/src/index.ts"
       ]
     }
   }

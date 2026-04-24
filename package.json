@@ -3,7 +3,7 @@
   "private": true,
   "packageManager": "pnpm@10.10.0",
   "scripts": {
-    "build": "pnpm -r --filter \"./packages/*\" run build",
+    "build": "pnpm -r --filter \"./packages/*\" run build && pnpm build:examples",
     "compile:components": "pnpm exec tsx ./scripts/compile-example-components.ts",
     "build:examples": "pnpm --filter @jue/web-playground build",
     "size:packages": "pnpm build && node ./scripts/report-package-sizes.mjs",
@@ -14,7 +14,7 @@
     "test:coverage:all": "pnpm exec vitest run --coverage --config vitest.coverage-all.config.ts",
     "test:e2e": "pnpm --filter @jue/web-playground test:e2e",
     "dev": "pnpm --filter @jue/web-playground preview",
-    "bench": "pnpm --filter @jue/web-playground run build"
+    "bench": "pnpm --filter @jue/bench bench"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",

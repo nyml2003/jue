@@ -16,6 +16,7 @@
   "include": [
     "apps/**/*.ts",
     "apps/**/*.tsx",
+    "runtime/**/*.ts",
     "scripts/**/*.ts",
     "vite-env.d.ts",
     "../../packages/shared/src/**/*.ts",

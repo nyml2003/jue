@@ -1,0 +1,84 @@
+:root {
+  color-scheme: light;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(255, 215, 170, 0.28), transparent 40%),
+    linear-gradient(180deg, #f7f4ee 0%, #ece6dc 100%);
+  color: #1f1a17;
+}
+
+#app {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.keyed-lab-page {
+  width: min(760px, 100%);
+}
+
+.keyed-lab-shell {
+  padding: clamp(24px, 4vw, 36px);
+  border: 1px solid rgba(31, 26, 23, 0.12);
+  background: rgba(255, 251, 244, 0.88);
+  box-shadow: 0 22px 54px rgba(52, 38, 24, 0.14);
+}
+
+.keyed-lab-title,
+.keyed-lab-summary,
+.keyed-row__label,
+.keyed-row__status {
+  display: block;
+}
+
+.keyed-lab-title {
+  font-size: clamp(2.4rem, 6vw, 3.6rem);
+  line-height: 0.92;
+}
+
+.keyed-lab-summary {
+  margin-top: 14px;
+  max-width: 620px;
+  color: rgba(31, 26, 23, 0.72);
+  line-height: 1.65;
+}
+
+.keyed-lab-list-shell {
+  margin-top: 24px;
+  display: grid;
+  gap: 12px;
+}
+
+.keyed-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 18px;
+  border: 1px solid rgba(31, 26, 23, 0.08);
+  background: rgba(255, 247, 235, 0.82);
+}
+
+.keyed-row__label {
+  font-size: 1.04rem;
+  font-weight: 700;
+}
+
+.keyed-row__status {
+  color: rgba(31, 26, 23, 0.58);
+  font-size: 0.88rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 640px) {
+  .keyed-row {
+    grid-template-columns: 1fr;
+  }
+}

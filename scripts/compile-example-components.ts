@@ -1,12 +1,11 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { listExampleApps } from "../packages/examples/src/index";
 import { tsImport } from "tsx/esm/api";
 import type { compileModule as compileModuleFn } from "../packages/compiler/src/frontend/index";
 
-const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
-const EXAMPLE_SRC = join(REPO_ROOT, "examples", "web-playground", "apps");
 type CompilerModule = {
   readonly compileModule: typeof compileModuleFn;
 };
@@ -15,16 +14,16 @@ async function main() {
   const compilerPath = fileURLToPath(new URL("../packages/compiler/src/frontend/index.ts", import.meta.url));
   const compilerUrl = pathToFileURL(compilerPath).href;
   const { compileModule } = await tsImport(compilerUrl, import.meta.url) as CompilerModule;
-  const sourcePaths = await collectComponentSourcePaths(EXAMPLE_SRC);
+  const examples = await listExampleApps();
 
-  for (const sourcePath of sourcePaths) {
-    const source = await readFile(sourcePath, "utf8");
+  for (const example of examples) {
+    const source = await readFile(example.componentPath, "utf8");
     const compiled = compileModule(source);
     if (!compiled.ok) {
-      throw new Error(`${sourcePath}: ${compiled.error.code}: ${compiled.error.message}`);
+      throw new Error(`${example.componentPath}: ${compiled.error.code}: ${compiled.error.message}`);
     }
 
-    const outputPath = join(dirname(sourcePath), "generated", "page.generated.ts");
+    const outputPath = example.generatedModulePath;
     await mkdir(dirname(outputPath), { recursive: true });
 
     await writeFile(
@@ -33,26 +32,6 @@ async function main() {
       "utf8"
     );
   }
-}
-
-async function collectComponentSourcePaths(directory: string): Promise<string[]> {
-  const entries = await readdir(directory, { withFileTypes: true });
-  const sourcePaths: string[] = [];
-
-  for (const entry of entries) {
-    const fullPath = join(directory, entry.name);
-
-    if (entry.isDirectory()) {
-      sourcePaths.push(...await collectComponentSourcePaths(fullPath));
-      continue;
-    }
-
-    if (entry.isFile() && entry.name.endsWith(".component.tsx")) {
-      sourcePaths.push(fullPath);
-    }
-  }
-
-  return sourcePaths;
 }
 
 void main();

@@ -1011,6 +1011,20 @@ function mountKeyedListItems(
       return moveResult;
     }
 
+    const flushResult = mounted.value.flushInitialBindings();
+    if (!flushResult.ok) {
+      const disposeResult = mounted.value.dispose();
+      if (!disposeResult.ok) {
+        return disposeResult;
+      }
+
+      const partialDisposeResult = disposeMountedTrees(trees.values());
+      if (!partialDisposeResult.ok) {
+        return partialDisposeResult;
+      }
+      return flushResult;
+    }
+
     trees.set(item.key, mounted.value);
     order.push(item.key);
   }
@@ -1064,6 +1078,20 @@ function reconcileKeyedListItems(
         return partialDisposeResult;
       }
       return moveResult;
+    }
+
+    const flushResult = mounted.value.flushInitialBindings();
+    if (!flushResult.ok) {
+      const disposeResult = mounted.value.dispose();
+      if (!disposeResult.ok) {
+        return disposeResult;
+      }
+
+      const partialDisposeResult = disposeNewKeyedListTrees(nextTrees, current.trees);
+      if (!partialDisposeResult.ok) {
+        return partialDisposeResult;
+      }
+      return flushResult;
     }
 
     nextTrees.set(item.key, mounted.value);

@@ -11,20 +11,20 @@
 
 ## 当前状态
 
-仓库已经不再是纯文档先行阶段。
+`Phase 1` 基线已经闭环。
 
 当前更准确的状态是：
 
-- `BlockIR -> lowering -> Blueprint -> runtime` 主链已经成立
-- `CONDITIONAL / NESTED_BLOCK / KEYED_LIST / VIRTUAL_LIST` 四类 region 都已有最小可运行链路
-- Babel frontend 的最小 TSX canary 已经接入 `@jue/compiler/frontend`
-- `examples/web-playground` 里已经有从 `.component.tsx` 编译到 `.generated.ts` 再挂载的真实例子
+- `BlockIR -> lowering -> Blueprint -> runtime` 主链已经稳定
+- `@jue/compiler/frontend`、`@jue/compiler/ir`、`@jue/compiler/lowering`、`@jue/compiler/builder` 已形成明确边界
+- `@jue/runtime-core/reactivity`、`@jue/runtime-core/host-contract` 已形成明确边界
+- `examples/web-playground/apps/*` 已是从 `.component.tsx -> generated/page.generated.ts -> mount` 的真实回归面
+- `@jue/examples`、`@jue/inspect`、`@jue/testkit`、`@jue/bench` 已形成第一版 tooling 闭环
 
-当前主线不是“先把文档写完”，而是：
+当前主线已经从“完成 Phase 1”切到：
 
-- 稳定 runtime / IR / region 边界
-- 继续收口 compiler frontend 的边界和输入面
-- 修齐 lint、文档和工程入口的一致性
+- 保持 kernel / authoring / host / tooling 基线稳定
+- 在不破坏基线的前提下进入 `Phase 2`
 
 建议阅读顺序：
 
@@ -37,7 +37,9 @@
 - [文档总索引](./docs/README.md)
 - [当前现状](./docs/01-overview/current-status.md)
 - [架构设计](./docs/01-overview/architecture.md)
-- [路线图](./docs/01-overview/roadmap.md)
+- [路线图](./docs/01-overview/roadmap/README.md)
+- [开发世界边界](./docs/04-layer/layer-model.md)
+- [包规划图](./docs/04-layer/package-map.md)
 - [运行时模型](./docs/02-core-specs/runtime-model.md)
 - [编译策略](./docs/02-core-specs/compiler-strategy.md)
 - [IR 规范](./docs/02-core-specs/ir-spec.md)
@@ -47,6 +49,7 @@
 - [Region 状态机](./docs/02-core-specs/region-state-machine.md)
 - [场景适配](./docs/02-core-specs/scenario-coverage.md)
 - [代码规范](./docs/03-engineering/code-style-spec.md)
+- [风格 DNA](./docs/03-engineering/style-dna.md)
 - [工程与工具链规范](./docs/03-engineering/engineering-toolchain-spec.md)
 
 ## 核心主张
@@ -82,13 +85,12 @@
 
 ## 直接下一步
 
-先做最小垂直链路：
+下一步不再是补齐 `Phase 1`，而是进入 `Phase 2`：
 
-- 一个 signal slot
-- 一个 text binding slot
-- 一张 `signalToBindings` 表
-- 一次 `setSignal`
-- 一次 dirty queue flush
-- 一次 DOM `setText`
+- `@jue/primitives`
+- `@jue/authoring-check`
+- `@jue/stream`
+- `@jue/router`
+- `@jue/query`
 
-如果这条链路还需要动态依赖收集、对象图遍历或通用 diff，说明设计没有收敛到位。
+前提是不要回头打穿已经稳定的 kernel / host / tooling contract。

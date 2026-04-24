@@ -247,6 +247,16 @@ lowering 输出不能只考虑语义，还要考虑运行时布局。
 - 简单 prop binding
 - 直接命名函数的 event handler
 - 极小 conditional：`cond ? <A /> : <B />`
+- 最小 `List` authoring：
+  - `each={itemsSignal}`
+  - `by={item => item.id}`
+  - 单个 arrow-function render callback
+- 最小 `VirtualList` authoring：
+  - `each={rowsSignal}`
+  - `by={row => row.id}`
+  - 静态 `estimateSize`
+  - 静态 `overscan`
+  - 单个 arrow-function render callback
 
 当前明确不支持：
 
@@ -254,7 +264,9 @@ lowering 输出不能只考虑语义，还要考虑运行时布局。
 - spread props
 - fragments
 - hooks
-- keyed / virtual list authoring
+- template 内事件处理
+- template 内嵌结构原语
+- 复杂 keyed selector / dynamic overscan / 动态高度测量
 
 也就是说，这一层现在证明的是前端边界可行，不是完整 JSX 编译器已经完成。
 

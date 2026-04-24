@@ -1,7 +1,8 @@
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { listExampleApps } from "../../../packages/examples/src/index";
 import { build } from "vite";
 
 const PACKAGE_ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -9,14 +10,10 @@ const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const EXAMPLES_ROOT = join(PACKAGE_ROOT, "apps");
 
 async function main() {
-  const entries = await readdir(EXAMPLES_ROOT, { withFileTypes: true });
+  const examples = await listExampleApps(EXAMPLES_ROOT);
 
-  for (const entry of entries) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-
-    const appRoot = join(EXAMPLES_ROOT, entry.name);
+  for (const example of examples) {
+    const appRoot = example.appRoot;
     await build({
       configFile: false,
       root: appRoot,

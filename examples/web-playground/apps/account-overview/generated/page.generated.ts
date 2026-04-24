@@ -19,6 +19,9 @@ function getScheduleReviewCount() {
   return scheduleReviewCount;
 }
 
+    
+
+    
     const blueprintResult = createBlueprint({
       nodeCount: 42,
       nodeKind: new Uint8Array([1,1,1,2,1,2,1,2,1,1,2,1,2,1,2,1,1,1,2,1,2,1,1,2,1,2,1,1,2,1,2,1,1,2,1,2,1,1,2,1,2,1]),
@@ -49,8 +52,12 @@ function getScheduleReviewCount() {
       throw new Error(blueprintResult.error.message);
     }
 
-    export const blueprint = blueprintResult.value;
+    const blueprint = blueprintResult.value;
+  
+    export { blueprint };
     export const signalCount = 43;
     export const initialSignalValues = ["account-page","account-shell","CUSTOMER 2048","Account Overview","A customer-facing summary page with explicit signals for labels, counters, and action styling.","account-badge account-badge--healthy","Healthy renewal posture","Monthly revenue","$48,200","Open invoices","3","Renewal date","2026-06-01","account-button account-button--primary","account-button account-button--secondary","Next recommended action","Finance follow-up is the fastest path to reducing friction before the renewal window opens.","100%","account-eyebrow","account-title","account-summary","account-row","account-grid","account-metric","account-metric-label","account-metric-value","account-metric","account-metric-label","account-metric-value","account-metric","account-metric-label","account-metric-value","account-note","account-note-title","account-note-body","account-detail-row",0.96,"account-detail-label","account-detail-value",24,"account-detail-input","Auto-billed",true];
+    export const keyedListDescriptors = [];
+    export const virtualListDescriptors = [];
     export const handlers = { "handleOpenInvoices": handleOpenInvoices, "handleScheduleReview": handleScheduleReview, "getOpenInvoicesCount": getOpenInvoicesCount, "getScheduleReviewCount": getScheduleReviewCount };
   

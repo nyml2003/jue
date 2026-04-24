@@ -4,7 +4,13 @@ import type { Blueprint } from "@jue/runtime-core";
 import { err, ok, type Result } from "@jue/shared";
 
 import { lowerBlockIRToBlueprint } from "../block-ir";
-import { compileSourceToBlockIR, type CompileToBlockIRError } from "./compile-to-block-ir";
+import {
+  compileSourceToBlockIR,
+  type CompileToBlockIRError,
+  type CompiledKeyedListDescriptor,
+  type CompiledTemplateDescriptor,
+  type CompiledVirtualListDescriptor
+} from "./compile-to-block-ir";
 import { parseModule } from "./parse";
 
 type GenerateFunction = typeof generateModule;
@@ -15,6 +21,8 @@ export interface CompiledModule {
   readonly blueprint: SerializedBlueprint;
   readonly signalCount: number;
   readonly initialSignalValues: readonly unknown[];
+  readonly keyedListDescriptors: readonly SerializedKeyedListDescriptor[];
+  readonly virtualListDescriptors: readonly SerializedVirtualListDescriptor[];
   readonly runtimeCode: string;
   readonly handlerNames: readonly string[];
 }
@@ -57,6 +65,25 @@ export interface SerializedBlueprint {
   readonly signalToBindings: readonly number[];
 }
 
+export interface SerializedTemplateDescriptor {
+  readonly blueprint: SerializedBlueprint;
+  readonly signalCount: number;
+  readonly initialSignalValues: readonly unknown[];
+  readonly signalPaths: readonly (((readonly string[]) | null))[];
+}
+
+export interface SerializedKeyedListDescriptor {
+  readonly regionSlot: number;
+  readonly sourceSignalSlot: number;
+  readonly keyPath: readonly string[];
+  readonly template: SerializedTemplateDescriptor;
+}
+
+export interface SerializedVirtualListDescriptor extends SerializedKeyedListDescriptor {
+  readonly estimateSize: number;
+  readonly overscan: number;
+}
+
 export function compileModule(
   source: string
 ): Result<CompiledModule, CompileToBlockIRError> {
@@ -75,17 +102,27 @@ export function compileModule(
   }
 
   const serialized = serializeBlueprint(lowered.value.blueprint);
+  const keyedListDescriptors = block.value.structures
+    .filter((descriptor): descriptor is CompiledKeyedListDescriptor => descriptor.kind === "keyed-list")
+    .map(serializeKeyedListDescriptor);
+  const virtualListDescriptors = block.value.structures
+    .filter((descriptor): descriptor is CompiledVirtualListDescriptor => descriptor.kind === "virtual-list")
+    .map(serializeVirtualListDescriptor);
   return ok({
     code: createCompiledModuleCode({
       blueprint: serialized,
       signalCount: lowered.value.signalCount,
       initialSignalValues: lowered.value.initialSignalValues,
+      keyedListDescriptors,
+      virtualListDescriptors,
       runtimeCode: runtime.code,
       handlerNames: runtime.handlerNames
     }),
     blueprint: serialized,
     signalCount: lowered.value.signalCount,
     initialSignalValues: lowered.value.initialSignalValues,
+    keyedListDescriptors,
+    virtualListDescriptors,
     runtimeCode: runtime.code,
     handlerNames: runtime.handlerNames
   });
@@ -99,6 +136,8 @@ function createCompiledModuleCode(input: {
   readonly blueprint: SerializedBlueprint;
   readonly signalCount: number;
   readonly initialSignalValues: readonly unknown[];
+  readonly keyedListDescriptors: readonly SerializedKeyedListDescriptor[];
+  readonly virtualListDescriptors: readonly SerializedVirtualListDescriptor[];
   readonly runtimeCode: string;
   readonly handlerNames: readonly string[];
 }): string {
@@ -110,45 +149,59 @@ function createCompiledModuleCode(input: {
       ? value.slice("__jue_handler__:".length)
       : JSON.stringify(value))
     .join(", ")}]`;
+  const templateDeclarations = [
+    ...input.keyedListDescriptors.map((descriptor, index) => ({
+      constName: `keyedListTemplate${index}`,
+      template: descriptor.template
+    })),
+    ...input.virtualListDescriptors.map((descriptor, index) => ({
+      constName: `virtualListTemplate${index}`,
+      template: descriptor.template
+    }))
+  ].map(declaration => createBlueprintDeclaration(declaration.constName, declaration.template.blueprint))
+    .join("\n\n");
+  const keyedListDescriptors = input.keyedListDescriptors
+    .map((descriptor, index) => `{
+      regionSlot: ${descriptor.regionSlot},
+      sourceSignalSlot: ${descriptor.sourceSignalSlot},
+      keyPath: ${JSON.stringify(descriptor.keyPath)},
+      template: {
+        blueprint: keyedListTemplate${index},
+        signalCount: ${descriptor.template.signalCount},
+        initialSignalValues: ${JSON.stringify(descriptor.template.initialSignalValues)},
+        signalPaths: ${JSON.stringify(descriptor.template.signalPaths)}
+      }
+    }`)
+    .join(",\n");
+  const virtualListDescriptors = input.virtualListDescriptors
+    .map((descriptor, index) => `{
+      regionSlot: ${descriptor.regionSlot},
+      sourceSignalSlot: ${descriptor.sourceSignalSlot},
+      keyPath: ${JSON.stringify(descriptor.keyPath)},
+      estimateSize: ${descriptor.estimateSize},
+      overscan: ${descriptor.overscan},
+      template: {
+        blueprint: virtualListTemplate${index},
+        signalCount: ${descriptor.template.signalCount},
+        initialSignalValues: ${JSON.stringify(descriptor.template.initialSignalValues)},
+        signalPaths: ${JSON.stringify(descriptor.template.signalPaths)}
+      }
+    }`)
+    .join(",\n");
 
   return `
     import { createBlueprint } from "@jue/runtime-core";
 
     ${input.runtimeCode}
 
-    const blueprintResult = createBlueprint({
-      nodeCount: ${JSON.stringify(input.blueprint.nodeCount)},
-      nodeKind: new Uint8Array(${JSON.stringify(input.blueprint.nodeKind)}),
-      nodePrimitiveRefIndex: new Uint32Array(${JSON.stringify(input.blueprint.nodePrimitiveRefIndex)}),
-      nodeTextRefIndex: new Uint32Array(${JSON.stringify(input.blueprint.nodeTextRefIndex)}),
-      nodeParentIndex: new Uint32Array(${JSON.stringify(input.blueprint.nodeParentIndex)}),
-      bindingOpcode: new Uint8Array(${JSON.stringify(input.blueprint.bindingOpcode)}),
-      bindingNodeIndex: new Uint32Array(${JSON.stringify(input.blueprint.bindingNodeIndex)}),
-      bindingDataIndex: new Uint32Array(${JSON.stringify(input.blueprint.bindingDataIndex)}),
-      bindingArgU32: new Uint32Array(${JSON.stringify(input.blueprint.bindingArgU32)}),
-      bindingArgRef: ${bindingArgRef},
-      regionType: new Uint8Array(${JSON.stringify(input.blueprint.regionType)}),
-      regionAnchorStart: new Uint32Array(${JSON.stringify(input.blueprint.regionAnchorStart)}),
-      regionAnchorEnd: new Uint32Array(${JSON.stringify(input.blueprint.regionAnchorEnd)}),
-      regionBranchRangeStart: new Uint32Array(${JSON.stringify(input.blueprint.regionBranchRangeStart)}),
-      regionBranchRangeCount: new Uint32Array(${JSON.stringify(input.blueprint.regionBranchRangeCount)}),
-      regionBranchNodeStart: new Uint32Array(${JSON.stringify(input.blueprint.regionBranchNodeStart)}),
-      regionBranchNodeEnd: new Uint32Array(${JSON.stringify(input.blueprint.regionBranchNodeEnd)}),
-      regionNestedBlockSlot: new Uint32Array(${JSON.stringify(input.blueprint.regionNestedBlockSlot)}),
-      regionNestedBlueprintSlot: new Uint32Array(${JSON.stringify(input.blueprint.regionNestedBlueprintSlot)}),
-      regionNestedMountMode: new Uint8Array(${JSON.stringify(input.blueprint.regionNestedMountMode)}),
-      signalToBindingStart: new Uint32Array(${JSON.stringify(input.blueprint.signalToBindingStart)}),
-      signalToBindingCount: new Uint32Array(${JSON.stringify(input.blueprint.signalToBindingCount)}),
-      signalToBindings: new Uint32Array(${JSON.stringify(input.blueprint.signalToBindings)})
-    });
+    ${templateDeclarations}
 
-    if (!blueprintResult.ok) {
-      throw new Error(blueprintResult.error.message);
-    }
-
-    export const blueprint = blueprintResult.value;
+    ${createBlueprintDeclaration("blueprint", input.blueprint, bindingArgRef)}
+    export { blueprint };
     export const signalCount = ${JSON.stringify(input.signalCount)};
     export const initialSignalValues = ${JSON.stringify(input.initialSignalValues)};
+    export const keyedListDescriptors = [${keyedListDescriptors}];
+    export const virtualListDescriptors = [${virtualListDescriptors}];
     export const handlers = { ${handlerEntries} };
   `;
 }
@@ -230,4 +283,79 @@ function serializeBlueprint(blueprint: Blueprint): SerializedBlueprint {
     signalToBindingCount: Array.from(blueprint.signalToBindingCount),
     signalToBindings: Array.from(blueprint.signalToBindings)
   };
+}
+
+function serializeTemplateDescriptor(template: CompiledTemplateDescriptor): SerializedTemplateDescriptor {
+  const lowered = lowerBlockIRToBlueprint(template.block);
+  if (!lowered.ok) {
+    throw new Error(lowered.error.message);
+  }
+
+  return {
+    blueprint: serializeBlueprint(lowered.value.blueprint),
+    signalCount: lowered.value.signalCount,
+    initialSignalValues: template.initialSignalValues,
+    signalPaths: template.signalPaths
+  };
+}
+
+function serializeKeyedListDescriptor(descriptor: CompiledKeyedListDescriptor): SerializedKeyedListDescriptor {
+  return {
+    regionSlot: descriptor.regionSlot,
+    sourceSignalSlot: descriptor.sourceSignalSlot,
+    keyPath: descriptor.keyPath,
+    template: serializeTemplateDescriptor(descriptor.template)
+  };
+}
+
+function serializeVirtualListDescriptor(descriptor: CompiledVirtualListDescriptor): SerializedVirtualListDescriptor {
+  return {
+    regionSlot: descriptor.regionSlot,
+    sourceSignalSlot: descriptor.sourceSignalSlot,
+    keyPath: descriptor.keyPath,
+    estimateSize: descriptor.estimateSize,
+    overscan: descriptor.overscan,
+    template: serializeTemplateDescriptor(descriptor.template)
+  };
+}
+
+function createBlueprintDeclaration(
+  constName: string,
+  blueprint: SerializedBlueprint,
+  bindingArgRefOverride?: string
+): string {
+  const bindingArgRef = bindingArgRefOverride ?? `[${blueprint.bindingArgRef.map(value => JSON.stringify(value)).join(", ")}]`;
+  return `
+    const ${constName}Result = createBlueprint({
+      nodeCount: ${JSON.stringify(blueprint.nodeCount)},
+      nodeKind: new Uint8Array(${JSON.stringify(blueprint.nodeKind)}),
+      nodePrimitiveRefIndex: new Uint32Array(${JSON.stringify(blueprint.nodePrimitiveRefIndex)}),
+      nodeTextRefIndex: new Uint32Array(${JSON.stringify(blueprint.nodeTextRefIndex)}),
+      nodeParentIndex: new Uint32Array(${JSON.stringify(blueprint.nodeParentIndex)}),
+      bindingOpcode: new Uint8Array(${JSON.stringify(blueprint.bindingOpcode)}),
+      bindingNodeIndex: new Uint32Array(${JSON.stringify(blueprint.bindingNodeIndex)}),
+      bindingDataIndex: new Uint32Array(${JSON.stringify(blueprint.bindingDataIndex)}),
+      bindingArgU32: new Uint32Array(${JSON.stringify(blueprint.bindingArgU32)}),
+      bindingArgRef: ${bindingArgRef},
+      regionType: new Uint8Array(${JSON.stringify(blueprint.regionType)}),
+      regionAnchorStart: new Uint32Array(${JSON.stringify(blueprint.regionAnchorStart)}),
+      regionAnchorEnd: new Uint32Array(${JSON.stringify(blueprint.regionAnchorEnd)}),
+      regionBranchRangeStart: new Uint32Array(${JSON.stringify(blueprint.regionBranchRangeStart)}),
+      regionBranchRangeCount: new Uint32Array(${JSON.stringify(blueprint.regionBranchRangeCount)}),
+      regionBranchNodeStart: new Uint32Array(${JSON.stringify(blueprint.regionBranchNodeStart)}),
+      regionBranchNodeEnd: new Uint32Array(${JSON.stringify(blueprint.regionBranchNodeEnd)}),
+      regionNestedBlockSlot: new Uint32Array(${JSON.stringify(blueprint.regionNestedBlockSlot)}),
+      regionNestedBlueprintSlot: new Uint32Array(${JSON.stringify(blueprint.regionNestedBlueprintSlot)}),
+      regionNestedMountMode: new Uint8Array(${JSON.stringify(blueprint.regionNestedMountMode)}),
+      signalToBindingStart: new Uint32Array(${JSON.stringify(blueprint.signalToBindingStart)}),
+      signalToBindingCount: new Uint32Array(${JSON.stringify(blueprint.signalToBindingCount)}),
+      signalToBindings: new Uint32Array(${JSON.stringify(blueprint.signalToBindings)})
+    });
+
+    if (!${constName}Result.ok) {
+      throw new Error(${constName}Result.error.message);
+    }
+
+    const ${constName} = ${constName}Result.value;
+  `;
 }
