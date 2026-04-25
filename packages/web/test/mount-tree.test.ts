@@ -5,9 +5,293 @@ import { createBlueprintBuilder } from "@jue/compiler";
 import { createBlueprint } from "@jue/runtime-core";
 import { describe, expect, it } from "vitest";
 
-import { mountTree } from "../src/index";
+import { mountCompiledModule, mountTree } from "../src/index";
 
 describe("@jue/web mountTree", () => {
+  it("mounts a compiled module surface and wires authored signal runtime updates", () => {
+    const root = document.createElement("div");
+    const blueprintResult = createBlueprint({
+      nodeCount: 1,
+      nodeKind: new Uint8Array([1]),
+      nodePrimitiveRefIndex: new Uint32Array([0]),
+      nodeTextRefIndex: new Uint32Array([INVALID_INDEX]),
+      nodeParentIndex: new Uint32Array([INVALID_INDEX]),
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      bindingArgU32: new Uint32Array(0),
+      bindingArgRef: ["View"],
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0),
+      signalToBindingStart: new Uint32Array([0]),
+      signalToBindingCount: new Uint32Array([0]),
+      signalToBindings: new Uint32Array(0)
+    });
+
+    expect(blueprintResult.ok).toBe(true);
+    if (!blueprintResult.ok) {
+      return;
+    }
+
+    const capturedRuntime: {
+      read?: (name: string) => unknown;
+      write?: (name: string, value: unknown) => void;
+      update?: (name: string, updater: (value: unknown) => unknown) => void;
+    } = {};
+    const mountedResult = mountCompiledModule({
+      root,
+      blueprint: blueprintResult.value,
+      signalCount: 1,
+      initialSignalValues: [2],
+      signalSlots: { count: 0 },
+      configureSignalRuntime(runtime) {
+        capturedRuntime.read = (name: string) => runtime.read(name);
+        capturedRuntime.write = (name: string, value: unknown) => runtime.write(name, value);
+        capturedRuntime.update = (name: string, updater: (value: unknown) => unknown) => runtime.update(name, updater);
+      },
+      handlers: {}
+    });
+
+    expect(mountedResult.ok).toBe(true);
+    const { read, write, update } = capturedRuntime;
+    if (!mountedResult.ok || !read || !write || !update) {
+      return;
+    }
+
+    expect(read("count")).toBe(2);
+    write("count", 4);
+    expect(read("count")).toBe(4);
+    update("count", (value: unknown) => Number(value) + 3);
+    expect(read("count")).toBe(7);
+  });
+
+  it("rejects mounting the same compiled module twice before the first instance is disposed", () => {
+    const rootA = document.createElement("div");
+    const rootB = document.createElement("div");
+    const blueprintResult = createBlueprint({
+      nodeCount: 1,
+      nodeKind: new Uint8Array([1]),
+      nodePrimitiveRefIndex: new Uint32Array([0]),
+      nodeTextRefIndex: new Uint32Array([INVALID_INDEX]),
+      nodeParentIndex: new Uint32Array([INVALID_INDEX]),
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      bindingArgU32: new Uint32Array(0),
+      bindingArgRef: ["View"],
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0),
+      signalToBindingStart: new Uint32Array([0]),
+      signalToBindingCount: new Uint32Array([0]),
+      signalToBindings: new Uint32Array(0)
+    });
+
+    expect(blueprintResult.ok).toBe(true);
+    if (!blueprintResult.ok) {
+      return;
+    }
+
+    const configureSignalRuntime = (_runtime: {
+      read(name: string): unknown;
+      write(name: string, value: unknown): void;
+      update(name: string, updater: (value: unknown) => unknown): void;
+    }) => {};
+
+    const mountedResult = mountCompiledModule({
+      root: rootA,
+      blueprint: blueprintResult.value,
+      signalCount: 1,
+      signalSlots: { count: 0 },
+      configureSignalRuntime,
+      handlers: {}
+    });
+
+    expect(mountedResult.ok).toBe(true);
+    if (!mountedResult.ok) {
+      return;
+    }
+
+    const duplicateMountResult = mountCompiledModule({
+      root: rootB,
+      blueprint: blueprintResult.value,
+      signalCount: 1,
+      signalSlots: { count: 0 },
+      configureSignalRuntime,
+      handlers: {}
+    });
+
+    expect(duplicateMountResult).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "COMPILED_MODULE_ALREADY_MOUNTED",
+        message: "This compiled module already has an active signal runtime. Dispose the current mount before mounting it again."
+      }
+    });
+
+    expect(mountedResult.value.mountedTree.dispose().ok).toBe(true);
+
+    const remountResult = mountCompiledModule({
+      root: rootB,
+      blueprint: blueprintResult.value,
+      signalCount: 1,
+      signalSlots: { count: 0 },
+      configureSignalRuntime,
+      handlers: {}
+    });
+
+    expect(remountResult.ok).toBe(true);
+    if (!remountResult.ok) {
+      return;
+    }
+
+    expect(remountResult.value.mountedTree.dispose().ok).toBe(true);
+  });
+
+  it("allows concurrent mounts when each compiled runtime instance provides its own signal bridge", () => {
+    const rootA = document.createElement("div");
+    const rootB = document.createElement("div");
+    const blueprintResult = createBlueprint({
+      nodeCount: 1,
+      nodeKind: new Uint8Array([1]),
+      nodePrimitiveRefIndex: new Uint32Array([0]),
+      nodeTextRefIndex: new Uint32Array([INVALID_INDEX]),
+      nodeParentIndex: new Uint32Array([INVALID_INDEX]),
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      bindingArgU32: new Uint32Array(0),
+      bindingArgRef: ["View"],
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0),
+      signalToBindingStart: new Uint32Array([0]),
+      signalToBindingCount: new Uint32Array([0]),
+      signalToBindings: new Uint32Array(0)
+    });
+
+    expect(blueprintResult.ok).toBe(true);
+    if (!blueprintResult.ok) {
+      return;
+    }
+
+    const createRuntime = () => ({
+      configureSignalRuntime: (_runtime: {
+        read(name: string): unknown;
+        write(name: string, value: unknown): void;
+        update(name: string, updater: (value: unknown) => unknown): void;
+      }) => {},
+      handlers: {}
+    });
+
+    const firstRuntime = createRuntime();
+    const secondRuntime = createRuntime();
+    const firstMountResult = mountCompiledModule({
+      root: rootA,
+      blueprint: blueprintResult.value,
+      signalCount: 1,
+      signalSlots: { count: 0 },
+      configureSignalRuntime: firstRuntime.configureSignalRuntime,
+      handlers: firstRuntime.handlers
+    });
+    const secondMountResult = mountCompiledModule({
+      root: rootB,
+      blueprint: blueprintResult.value,
+      signalCount: 1,
+      signalSlots: { count: 0 },
+      configureSignalRuntime: secondRuntime.configureSignalRuntime,
+      handlers: secondRuntime.handlers
+    });
+
+    expect(firstMountResult.ok).toBe(true);
+    expect(secondMountResult.ok).toBe(true);
+    if (!firstMountResult.ok || !secondMountResult.ok) {
+      return;
+    }
+
+    expect(firstMountResult.value.mountedTree.dispose().ok).toBe(true);
+    expect(secondMountResult.value.mountedTree.dispose().ok).toBe(true);
+  });
+
+  it("runs lifecycle dispose cleanup when mount fails after mutating module-local state", () => {
+    const root = document.createElement("div");
+    const blueprintResult = createBlueprint({
+      nodeCount: 1,
+      nodeKind: new Uint8Array([1]),
+      nodePrimitiveRefIndex: new Uint32Array([0]),
+      nodeTextRefIndex: new Uint32Array([INVALID_INDEX]),
+      nodeParentIndex: new Uint32Array([INVALID_INDEX]),
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      bindingArgU32: new Uint32Array(0),
+      bindingArgRef: ["View"],
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0),
+      signalToBindingStart: new Uint32Array([0]),
+      signalToBindingCount: new Uint32Array([0]),
+      signalToBindings: new Uint32Array(0)
+    });
+
+    expect(blueprintResult.ok).toBe(true);
+    if (!blueprintResult.ok) {
+      return;
+    }
+
+    let runtimeStarted = false;
+    const configureSignalRuntime = (_runtime: {
+      read(name: string): unknown;
+      write(name: string, value: unknown): void;
+      update(name: string, updater: (value: unknown) => unknown): void;
+    }) => {};
+
+    const failedMountResult = mountCompiledModule({
+      root,
+      blueprint: blueprintResult.value,
+      signalCount: 1,
+      signalSlots: { count: 0 },
+      configureSignalRuntime,
+      handlers: {
+        mount() {
+          runtimeStarted = true;
+          throw new Error("boom");
+        },
+        dispose() {
+          runtimeStarted = false;
+        }
+      }
+    });
+
+    expect(failedMountResult).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "COMPILED_MODULE_LIFECYCLE_FAILED",
+        message: "boom"
+      }
+    });
+    expect(runtimeStarted).toBe(false);
+
+    const remountResult = mountCompiledModule({
+      root,
+      blueprint: blueprintResult.value,
+      signalCount: 1,
+      signalSlots: { count: 0 },
+      configureSignalRuntime,
+      handlers: {}
+    });
+
+    expect(remountResult.ok).toBe(true);
+    if (!remountResult.ok) {
+      return;
+    }
+
+    expect(remountResult.value.mountedTree.dispose().ok).toBe(true);
+  });
+
   it("mounts a static node tree and applies initial event/prop/style bindings", () => {
     let pressCount = 0;
     const root = document.createElement("div");
@@ -64,6 +348,51 @@ describe("@jue/web mountTree", () => {
 
     button?.click();
     expect(pressCount).toBe(1);
+  });
+
+  it("switches authored conditional regions through signal-driven region bindings", () => {
+    const root = document.createElement("div");
+    const builder = createBlueprintBuilder();
+    builder.setSignalCount(1);
+    builder.setInitialSignalValues([true]);
+
+    const parent = builder.element("View");
+    const on = builder.text("on");
+    const off = builder.text("off");
+    expect(builder.append(parent, on).ok).toBe(true);
+    expect(builder.append(parent, off).ok).toBe(true);
+    const regionSlot = builder.defineConditionalRegion({
+      anchorStartNode: on,
+      anchorEndNode: off,
+      branches: [
+        { startNode: on, endNode: on },
+        { startNode: off, endNode: off }
+      ]
+    });
+    builder.bindRegionSwitch(regionSlot, 0, 0, 1);
+
+    const lowered = builder.buildBlueprint();
+    expect(lowered.ok).toBe(true);
+    if (!lowered.ok) {
+      return;
+    }
+
+    const mountedResult = mountTree({
+      blueprint: lowered.value.blueprint,
+      root,
+      signalCount: lowered.value.signalCount,
+      initialSignalValues: lowered.value.initialSignalValues
+    });
+    expect(mountedResult.ok).toBe(true);
+    if (!mountedResult.ok) {
+      return;
+    }
+
+    expect(mountedResult.value.flushInitialBindings().ok).toBe(true);
+    expect(root.textContent).toBe("on");
+
+    expect(mountedResult.value.setSignal(0, false).ok).toBe(true);
+    expect(root.textContent).toBe("off");
   });
 
   it("mounts, replaces, and detaches nested block content inside region anchors", () => {

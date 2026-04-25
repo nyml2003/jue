@@ -215,19 +215,11 @@ export function mountTree(input: MountTreeInput): Result<MountedTree, MountBlock
               });
             }
 
-            const attached = mountConditionalRegionContent(
-              instance,
-              slot,
-              branchIndex,
-              conditionalContentHooks
-            );
+            const attached = applyConditionalRegionBranch(slot, branchIndex);
 
-            return attached
+            return attached.ok
               ? mountedTree.flushInitialBindings()
-              : err({
-                code: "MOUNT_TREE_CONDITIONAL_ATTACH_REJECTED",
-                message: `Conditional region ${slot} rejected attach for branch ${branchIndex}.`
-              });
+              : attached;
           },
           switchTo(branchIndex) {
             if (disposed) {
@@ -245,25 +237,11 @@ export function mountTree(input: MountTreeInput): Result<MountedTree, MountBlock
               });
             }
 
-            if (!beginConditionalRegionSwitch(instance, slot, branchIndex)) {
-              return err({
-                code: "MOUNT_TREE_CONDITIONAL_SWITCH_REJECTED",
-                message: `Conditional region ${slot} rejected switch to branch ${branchIndex}.`
-              });
-            }
+            const switched = applyConditionalRegionBranch(slot, branchIndex);
 
-            const switched = completeConditionalRegionContentSwitch(
-              instance,
-              slot,
-              conditionalContentHooks
-            );
-
-            return switched
+            return switched.ok
               ? mountedTree.flushInitialBindings()
-              : err({
-                code: "MOUNT_TREE_CONDITIONAL_SWITCH_FAILED",
-                message: `Conditional region ${slot} failed while switching to branch ${branchIndex}.`
-              });
+              : switched;
           },
           clear() {
             if (disposed) {
@@ -657,13 +635,18 @@ export function mountTree(input: MountTreeInput): Result<MountedTree, MountBlock
           opcode === BindingOpcode.TEXT ||
           opcode === BindingOpcode.PROP ||
           opcode === BindingOpcode.STYLE ||
-          opcode === BindingOpcode.EVENT
+          opcode === BindingOpcode.EVENT ||
+          opcode === BindingOpcode.REGION_SWITCH
         ) {
           enqueueSchedulerSlot(scheduler, 1, "binding", bindingSlot);
         }
       }
 
-      return flushBindingQueue(instance, scheduler, adapter);
+      return flushBindingQueue(instance, scheduler, adapter, {
+        switchConditionalRegion(regionSlot, branchIndex) {
+          return applyConditionalRegionBranch(regionSlot, branchIndex);
+        }
+      });
     },
     setSignal(slot, value, lane = Lane.VISIBLE_UPDATE) {
       if (disposed) {
@@ -685,7 +668,11 @@ export function mountTree(input: MountTreeInput): Result<MountedTree, MountBlock
         });
       }
 
-      return flushBindingQueue(instance, scheduler, adapter);
+      return flushBindingQueue(instance, scheduler, adapter, {
+        switchConditionalRegion(regionSlot, branchIndex) {
+          return applyConditionalRegionBranch(regionSlot, branchIndex);
+        }
+      });
     },
     setSignals(writes, lane = Lane.VISIBLE_UPDATE) {
       if (disposed) {
@@ -720,7 +707,11 @@ export function mountTree(input: MountTreeInput): Result<MountedTree, MountBlock
         });
       }
 
-      return flushBindingQueue(instance, scheduler, adapter);
+      return flushBindingQueue(instance, scheduler, adapter, {
+        switchConditionalRegion(regionSlot, branchIndex) {
+          return applyConditionalRegionBranch(regionSlot, branchIndex);
+        }
+      });
     },
     mountRange(startNode, endNode) {
       if (disposed) {
@@ -881,6 +872,59 @@ export function mountTree(input: MountTreeInput): Result<MountedTree, MountBlock
       return ok(undefined);
     }
   };
+
+  function applyConditionalRegionBranch(
+    slot: number,
+    branchIndex: number
+  ): Result<void, MountBlockError> {
+    if (disposed) {
+      return err({
+        code: "TREE_MOUNT_DISPOSED",
+        message: "Cannot switch a conditional region after the mounted tree has been disposed."
+      });
+    }
+
+    const currentBranch = getConditionalRegionMountedBranch(instance, slot);
+    if (currentBranch === null) {
+      const attached = mountConditionalRegionContent(
+        instance,
+        slot,
+        branchIndex,
+        conditionalContentHooks
+      );
+
+      return attached
+        ? ok(undefined)
+        : err({
+          code: "MOUNT_TREE_CONDITIONAL_ATTACH_REJECTED",
+          message: `Conditional region ${slot} rejected attach for branch ${branchIndex}.`
+        });
+    }
+
+    if (currentBranch === branchIndex) {
+      return ok(undefined);
+    }
+
+    if (!beginConditionalRegionSwitch(instance, slot, branchIndex)) {
+      return err({
+        code: "MOUNT_TREE_CONDITIONAL_SWITCH_REJECTED",
+        message: `Conditional region ${slot} rejected switch to branch ${branchIndex}.`
+      });
+    }
+
+    const switched = completeConditionalRegionContentSwitch(
+      instance,
+      slot,
+      conditionalContentHooks
+    );
+
+    return switched
+      ? ok(undefined)
+      : err({
+        code: "MOUNT_TREE_CONDITIONAL_SWITCH_FAILED",
+        message: `Conditional region ${slot} failed while switching to branch ${branchIndex}.`
+      });
+  }
 
   const initializeRegionsResult = initializeMountedTreeRegions(input.blueprint, instance, mountedTree);
   if (!initializeRegionsResult.ok) {

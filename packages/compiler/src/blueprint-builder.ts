@@ -25,6 +25,7 @@ export interface BlueprintBuilder {
   bindProp(node: number, key: string, signal: number): void;
   bindStyle(node: number, key: string, signal: number): void;
   bindEvent(node: number, event: HostEventKey, handler: unknown): void;
+  bindRegionSwitch(region: number, signal: number, truthyBranch: number, falsyBranch: number): void;
   buildIR(): Result<BlockIR, BlueprintBuilderError>;
   buildBlueprint(): Result<LoweredBlockIR, BlueprintBuilderError | LowerBlockIRError>;
 }
@@ -212,6 +213,15 @@ export function createBlueprintBuilder(): BlueprintBuilder {
         handler
       });
     },
+    bindRegionSwitch(region, signal, truthyBranch, falsyBranch) {
+      bindings.push({
+        kind: "region-switch",
+        region,
+        signal,
+        truthyBranch,
+        falsyBranch
+      });
+    },
     buildIR() {
       const validation = validateBuilderState(signalCount, initialSignalValues, nodes, bindings, regions);
       if (!validation.ok) {
@@ -384,6 +394,44 @@ function validateBuilderState(
   }
 
   for (const binding of bindings) {
+    if (binding.kind === "region-switch") {
+      if (binding.signal < 0 || binding.signal >= signalCount) {
+        return err({
+          code: "BUILDER_SIGNAL_OUT_OF_RANGE",
+          message: `Binding references signal slot ${binding.signal}, but signalCount is ${signalCount}.`
+        });
+      }
+
+      const region = regions[binding.region];
+      if (!region) {
+        return err({
+          code: "BUILDER_REGION_REFERENCE_MISSING",
+          message: `Region switch binding references missing region ${binding.region}.`
+        });
+      }
+
+      if (region.kind !== "conditional") {
+        return err({
+          code: "BUILDER_REGION_REFERENCE_INVALID",
+          message: `Region switch binding can only target conditional regions, got ${region.kind}.`
+        });
+      }
+
+      if (
+        binding.truthyBranch < 0 ||
+        binding.truthyBranch >= region.branches.length ||
+        binding.falsyBranch < 0 ||
+        binding.falsyBranch >= region.branches.length
+      ) {
+        return err({
+          code: "BUILDER_REGION_BRANCH_INVALID",
+          message: `Region switch binding references invalid conditional branch indices ${binding.truthyBranch}/${binding.falsyBranch}.`
+        });
+      }
+
+      continue;
+    }
+
     if (!nodeIds.has(binding.node)) {
       return err({
         code: "BUILDER_BINDING_NODE_MISSING",

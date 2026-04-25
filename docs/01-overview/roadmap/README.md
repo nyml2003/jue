@@ -79,12 +79,9 @@
 
 如果只看“现在就该做什么”，排序是：
 
-1. Phase 1 的 kernel 收口
-2. Phase 1 的 authoring 收口
-3. Phase 1 的 web host 加固
-4. Phase 1 的 tooling 闭环
-5. Phase 2 的 primitives / stream / router / query
-6. Phase 3 的 form / animation / gesture / viewport / native / language-tools
+1. 重做 Phase 2 的支持验收
+2. 先修 compiler 主路径，再判断哪些能力真的支持
+3. 只有 Phase 2 重新过关后，才进入 Phase 3
 
 ## 发布判断
 
@@ -111,3 +108,10 @@
 - `Phase 3`：世界扩面
 
 从现在开始，后续所有规划都以这套阶段为准。
+
+当前真实阶段不是 `Phase 3`。
+
+当前真实状态是：
+
+- `Phase 1` 已完成
+- `Phase 2` 包面已落地，但支持验收仍在进行中

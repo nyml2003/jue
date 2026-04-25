@@ -2,7 +2,71 @@
 
     import { createBlueprint } from "@jue/runtime-core";
 
-    let openRunbookCount = 0;
+    
+
+    
+    export function createRuntime(): {
+      configureSignalRuntime: {
+        (runtime: {
+          read(name: string): any;
+          write(name: string, value: any): void;
+          update(name: string, updater: (value: any) => any): void;
+        }): void;
+      };
+      handlers: Record<string, unknown>;
+    } {
+      let __jueSignalRuntime = {
+        read(name: string): any {
+          throw new Error(`Signal runtime is not configured for ${name}.`);
+        },
+        write(name: string, _value: any): void {
+          throw new Error(`Signal runtime is not configured for ${name}.`);
+        },
+        update(name: string, _updater: (value: any) => any): void {
+          throw new Error(`Signal runtime is not configured for ${name}.`);
+        }
+      };
+
+      function configureSignalRuntime(runtime: {
+        read(name: string): any;
+        write(name: string, value: any): void;
+        update(name: string, updater: (value: any) => any): void;
+      }): void {
+        __jueSignalRuntime = runtime;
+      }
+
+      function __jueCreateSignalRef(name: string) {
+        return {
+          get(): any {
+            return __jueSignalRuntime.read(name);
+          },
+          set(value: any): void {
+            __jueSignalRuntime.write(name, value);
+          },
+          update(updater: (value: any) => any): void {
+            __jueSignalRuntime.update(name, updater);
+          }
+        };
+      }
+
+      const pageClass = __jueCreateSignalRef("pageClass");
+const shellClass = __jueCreateSignalRef("shellClass");
+const eyebrow = __jueCreateSignalRef("eyebrow");
+const title = __jueCreateSignalRef("title");
+const summary = __jueCreateSignalRef("summary");
+const statusClass = __jueCreateSignalRef("statusClass");
+const statusText = __jueCreateSignalRef("statusText");
+const ownerLabel = __jueCreateSignalRef("ownerLabel");
+const ownerValue = __jueCreateSignalRef("ownerValue");
+const riskLabel = __jueCreateSignalRef("riskLabel");
+const riskValue = __jueCreateSignalRef("riskValue");
+const windowLabel = __jueCreateSignalRef("windowLabel");
+const windowValue = __jueCreateSignalRef("windowValue");
+const primaryButtonClass = __jueCreateSignalRef("primaryButtonClass");
+const secondaryButtonClass = __jueCreateSignalRef("secondaryButtonClass");
+const branchText = __jueCreateSignalRef("branchText");
+
+      let openRunbookCount = 0;
 let notifyOpsCount = 0;
 function handleOpenRunbook() {
   openRunbookCount += 1;
@@ -19,6 +83,13 @@ function getNotifyOpsCount() {
   return notifyOpsCount;
 }
 
+      return {
+        configureSignalRuntime,
+        handlers: { "handleOpenRunbook": handleOpenRunbook, "handleNotifyOps": handleNotifyOps, "getOpenRunbookCount": getOpenRunbookCount, "getNotifyOpsCount": getNotifyOpsCount }
+      };
+    }
+  
+
     
 
     
@@ -32,7 +103,7 @@ function getNotifyOpsCount() {
       bindingNodeIndex: new Uint32Array([0,1,2,3,4,5,6,7,8,9,10,11,11,13,13,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32]),
       bindingDataIndex: new Uint32Array([0,2,4,2,6,3,8,4,10,12,6,14,16,18,20,22,15,24,26,28,7,30,8,32,34,9,36,10,38,40,11,42,12]),
       bindingArgU32: new Uint32Array([0,33,1,34,16,35,17,36,18,37,19,38,5,39,13,40,41,42,14,43,44,45,20,46,21,47,22,48,23,49,24,50,25,51,26,52,27,53,28,54,29,55,30,56]),
-      bindingArgRef: ["View", "View", "Text", "", "Text", "", "Text", "", "View", "Text", "", "Button", "Open runbook", "Button", "Notify ops", "Text", "", "View", "View", "Text", "", "Text", "", "View", "Text", "", "Text", "", "View", "Text", "", "Text", "", "className", "className", "className", "className", "className", "className", "className", "className", "onPress", handleOpenRunbook, "className", "onPress", handleNotifyOps, "className", "className", "className", "className", "className", "className", "className", "className", "className", "className", "className"],
+      bindingArgRef: ["View", "View", "Text", "", "Text", "", "Text", "", "View", "Text", "", "Button", "Open runbook", "Button", "Notify ops", "Text", "", "View", "View", "Text", "", "Text", "", "View", "Text", "", "Text", "", "View", "Text", "", "Text", "", "className", "className", "className", "className", "className", "className", "className", "className", "onPress", "__jue_handler__:handleOpenRunbook", "className", "onPress", "__jue_handler__:handleNotifyOps", "className", "className", "className", "className", "className", "className", "className", "className", "className", "className", "className"],
       regionType: new Uint8Array([]),
       regionAnchorStart: new Uint32Array([]),
       regionAnchorEnd: new Uint32Array([]),
@@ -56,8 +127,8 @@ function getNotifyOpsCount() {
   
     export { blueprint };
     export const signalCount = 31;
+    export const signalSlots = {"pageClass":0,"shellClass":1,"eyebrow":2,"title":3,"summary":4,"statusClass":5,"statusText":6,"ownerLabel":7,"ownerValue":8,"riskLabel":9,"riskValue":10,"windowLabel":11,"windowValue":12,"primaryButtonClass":13,"secondaryButtonClass":14,"branchText":15};
     export const initialSignalValues = ["release-page","release-shell","SPRINT 24.3","Release Checklist","A more typical shipping page with rollout context, clear ownership, and a final readiness branch.","release-badge release-badge--ready","Ready for rollout","Release owner","Client platform","Primary risk","Cache invalidation lag","Deployment window","21:00-21:20 UTC","release-button release-button--primary","release-button release-button--secondary","All blocking checks are green. Proceed with staged rollout.","release-eyebrow","release-title","release-summary","release-row","release-branch release-branch--ready","release-grid","release-card","release-card-label","release-card-value","release-card","release-card-label","release-card-value","release-card","release-card-label","release-card-value"];
     export const keyedListDescriptors = [];
     export const virtualListDescriptors = [];
-    export const handlers = { "handleOpenRunbook": handleOpenRunbook, "handleNotifyOps": handleNotifyOps, "getOpenRunbookCount": getOpenRunbookCount, "getNotifyOpsCount": getNotifyOpsCount };
   

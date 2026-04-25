@@ -432,4 +432,43 @@ describe("@jue/runtime-core dispatchBinding", () => {
       }
     });
   });
+
+  it("dispatches conditional region switch bindings through runtime hooks", () => {
+    const blueprintResult = createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array([BindingOpcode.REGION_SWITCH]),
+      bindingNodeIndex: new Uint32Array([INVALID_INDEX]),
+      bindingDataIndex: new Uint32Array([0]),
+      bindingArgU32: new Uint32Array([0, 2, 1, 0]),
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0)
+    });
+
+    expect(blueprintResult.ok).toBe(true);
+    if (!blueprintResult.ok) {
+      return;
+    }
+
+    const instance = createBlockInstance(blueprintResult.value, {
+      signalCount: 1
+    });
+    instance.signalValues[0] = true;
+
+    const adapter = createAdapter();
+    const calls: Array<{ regionSlot: number; branchIndex: number }> = [];
+
+    expect(dispatchBinding(instance, adapter, 0, {
+      switchConditionalRegion(regionSlot, branchIndex) {
+        calls.push({ regionSlot, branchIndex });
+        return ok(undefined);
+      }
+    })).toEqual({
+      ok: true,
+      value: undefined,
+      error: null
+    });
+
+    expect(calls).toEqual([{ regionSlot: 2, branchIndex: 1 }]);
+  });
 });

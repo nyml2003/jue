@@ -59,6 +59,13 @@ export type IRBinding =
       readonly node: number;
       readonly event: HostEventKey;
       readonly handler: unknown;
+    }
+  | {
+      readonly kind: "region-switch";
+      readonly signal: number;
+      readonly region: number;
+      readonly truthyBranch: number;
+      readonly falsyBranch: number;
     };
 
 export type IRRegion =
@@ -183,38 +190,75 @@ export function lowerBlockIRToBlueprint(
       continue;
     }
 
-    const nodeSlotResult = getNodeSlot(nodeSlotById, binding.node, "binding node", bindingSlot);
-    if (!nodeSlotResult.ok) {
-      return nodeSlotResult;
-    }
-
-    bindingNodeIndex[bindingSlot] = nodeSlotResult.value;
-
     switch (binding.kind) {
       case "text":
+        {
+          const nodeSlotResult = getNodeSlot(nodeSlotById, binding.node, "binding node", bindingSlot);
+          if (!nodeSlotResult.ok) {
+            return nodeSlotResult;
+          }
+
+          bindingNodeIndex[bindingSlot] = nodeSlotResult.value;
+        }
         bindingOpcode[bindingSlot] = BindingOpcode.TEXT;
         bindingDataIndex[bindingSlot] = binding.signal;
         addSignalDependency(signalToBindings, binding.signal, bindingSlot);
         break;
       case "prop":
+        {
+          const nodeSlotResult = getNodeSlot(nodeSlotById, binding.node, "binding node", bindingSlot);
+          if (!nodeSlotResult.ok) {
+            return nodeSlotResult;
+          }
+
+          bindingNodeIndex[bindingSlot] = nodeSlotResult.value;
+        }
         bindingOpcode[bindingSlot] = BindingOpcode.PROP;
         bindingDataIndex[bindingSlot] = bindingArgU32.length;
         bindingArgU32.push(binding.signal, pushRef(bindingArgRef, binding.key));
         addSignalDependency(signalToBindings, binding.signal, bindingSlot);
         break;
       case "style":
+        {
+          const nodeSlotResult = getNodeSlot(nodeSlotById, binding.node, "binding node", bindingSlot);
+          if (!nodeSlotResult.ok) {
+            return nodeSlotResult;
+          }
+
+          bindingNodeIndex[bindingSlot] = nodeSlotResult.value;
+        }
         bindingOpcode[bindingSlot] = BindingOpcode.STYLE;
         bindingDataIndex[bindingSlot] = bindingArgU32.length;
         bindingArgU32.push(binding.signal, pushRef(bindingArgRef, binding.key));
         addSignalDependency(signalToBindings, binding.signal, bindingSlot);
         break;
       case "event":
+        {
+          const nodeSlotResult = getNodeSlot(nodeSlotById, binding.node, "binding node", bindingSlot);
+          if (!nodeSlotResult.ok) {
+            return nodeSlotResult;
+          }
+
+          bindingNodeIndex[bindingSlot] = nodeSlotResult.value;
+        }
         bindingOpcode[bindingSlot] = BindingOpcode.EVENT;
         bindingDataIndex[bindingSlot] = bindingArgU32.length;
         bindingArgU32.push(
           pushRef(bindingArgRef, binding.event),
           pushRef(bindingArgRef, binding.handler)
         );
+        break;
+      case "region-switch":
+        bindingOpcode[bindingSlot] = BindingOpcode.REGION_SWITCH;
+        bindingNodeIndex[bindingSlot] = INVALID_INDEX;
+        bindingDataIndex[bindingSlot] = bindingArgU32.length;
+        bindingArgU32.push(
+          binding.signal,
+          binding.region,
+          binding.truthyBranch,
+          binding.falsyBranch
+        );
+        addSignalDependency(signalToBindings, binding.signal, bindingSlot);
         break;
     }
   }

@@ -2,7 +2,71 @@
 
     import { createBlueprint } from "@jue/runtime-core";
 
-    let acknowledgeCount = 0;
+    
+
+    
+    export function createRuntime(): {
+      configureSignalRuntime: {
+        (runtime: {
+          read(name: string): any;
+          write(name: string, value: any): void;
+          update(name: string, updater: (value: any) => any): void;
+        }): void;
+      };
+      handlers: Record<string, unknown>;
+    } {
+      let __jueSignalRuntime = {
+        read(name: string): any {
+          throw new Error(`Signal runtime is not configured for ${name}.`);
+        },
+        write(name: string, _value: any): void {
+          throw new Error(`Signal runtime is not configured for ${name}.`);
+        },
+        update(name: string, _updater: (value: any) => any): void {
+          throw new Error(`Signal runtime is not configured for ${name}.`);
+        }
+      };
+
+      function configureSignalRuntime(runtime: {
+        read(name: string): any;
+        write(name: string, value: any): void;
+        update(name: string, updater: (value: any) => any): void;
+      }): void {
+        __jueSignalRuntime = runtime;
+      }
+
+      function __jueCreateSignalRef(name: string) {
+        return {
+          get(): any {
+            return __jueSignalRuntime.read(name);
+          },
+          set(value: any): void {
+            __jueSignalRuntime.write(name, value);
+          },
+          update(updater: (value: any) => any): void {
+            __jueSignalRuntime.update(name, updater);
+          }
+        };
+      }
+
+      const pageClass = __jueCreateSignalRef("pageClass");
+const shellClass = __jueCreateSignalRef("shellClass");
+const level = __jueCreateSignalRef("level");
+const title = __jueCreateSignalRef("title");
+const summary = __jueCreateSignalRef("summary");
+const statusClass = __jueCreateSignalRef("statusClass");
+const statusText = __jueCreateSignalRef("statusText");
+const ownerLabel = __jueCreateSignalRef("ownerLabel");
+const ownerValue = __jueCreateSignalRef("ownerValue");
+const mitigationLabel = __jueCreateSignalRef("mitigationLabel");
+const mitigationValue = __jueCreateSignalRef("mitigationValue");
+const footerLabel = __jueCreateSignalRef("footerLabel");
+const footerValue = __jueCreateSignalRef("footerValue");
+const acknowledgeClass = __jueCreateSignalRef("acknowledgeClass");
+const timelineClass = __jueCreateSignalRef("timelineClass");
+const calloutText = __jueCreateSignalRef("calloutText");
+
+      let acknowledgeCount = 0;
 let pageTimelineCount = 0;
 function handleAcknowledge() {
   acknowledgeCount += 1;
@@ -19,6 +83,13 @@ function getPageTimelineCount() {
   return pageTimelineCount;
 }
 
+      return {
+        configureSignalRuntime,
+        handlers: { "handleAcknowledge": handleAcknowledge, "handlePageTimeline": handlePageTimeline, "getAcknowledgeCount": getAcknowledgeCount, "getPageTimelineCount": getPageTimelineCount }
+      };
+    }
+  
+
     
 
     
@@ -32,7 +103,7 @@ function getPageTimelineCount() {
       bindingNodeIndex: new Uint32Array([0,1,2,3,4,5,6,7,8,9,10,11,11,13,13,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32]),
       bindingDataIndex: new Uint32Array([0,2,4,2,6,3,8,4,10,12,6,14,16,18,20,22,15,24,26,28,7,30,8,32,34,9,36,10,38,40,11,42,12]),
       bindingArgU32: new Uint32Array([0,33,1,34,16,35,17,36,18,37,19,38,5,39,13,40,41,42,14,43,44,45,20,46,21,47,22,48,23,49,24,50,25,51,26,52,27,53,28,54,29,55,30,56]),
-      bindingArgRef: ["View", "View", "Text", "", "Text", "", "Text", "", "View", "Text", "", "Button", "Acknowledge", "Button", "Page timeline", "Text", "", "View", "View", "Text", "", "Text", "", "View", "Text", "", "Text", "", "View", "Text", "", "Text", "", "className", "className", "className", "className", "className", "className", "className", "className", "onPress", handleAcknowledge, "className", "onPress", handlePageTimeline, "className", "className", "className", "className", "className", "className", "className", "className", "className", "className", "className"],
+      bindingArgRef: ["View", "View", "Text", "", "Text", "", "Text", "", "View", "Text", "", "Button", "Acknowledge", "Button", "Page timeline", "Text", "", "View", "View", "Text", "", "Text", "", "View", "Text", "", "Text", "", "View", "Text", "", "Text", "", "className", "className", "className", "className", "className", "className", "className", "className", "onPress", "__jue_handler__:handleAcknowledge", "className", "onPress", "__jue_handler__:handlePageTimeline", "className", "className", "className", "className", "className", "className", "className", "className", "className", "className", "className"],
       regionType: new Uint8Array([]),
       regionAnchorStart: new Uint32Array([]),
       regionAnchorEnd: new Uint32Array([]),
@@ -56,8 +127,8 @@ function getPageTimelineCount() {
   
     export { blueprint };
     export const signalCount = 31;
+    export const signalSlots = {"pageClass":0,"shellClass":1,"level":2,"title":3,"summary":4,"statusClass":5,"statusText":6,"ownerLabel":7,"ownerValue":8,"mitigationLabel":9,"mitigationValue":10,"footerLabel":11,"footerValue":12,"acknowledgeClass":13,"timelineClass":14,"calloutText":15};
     export const initialSignalValues = ["incident-page","incident-shell","SEV-2 INCIDENT","API latency brief","A concise incident page with one conditional branch so the compiler path still exercises region lowering.","incident-badge incident-badge--warning","Degraded but stable","Incident owner","Platform runtime","Current mitigation","Traffic shifted to warm replicas","Last update","08:42 UTC","incident-button incident-button--primary","incident-button incident-button--ghost","Escalation remains open while p95 stays above 900 ms.","incident-eyebrow","incident-title","incident-summary","incident-row","incident-callout incident-callout--warning","incident-grid","incident-card","incident-card-label","incident-card-value","incident-card","incident-card-label","incident-card-value","incident-card","incident-card-label","incident-card-value"];
     export const keyedListDescriptors = [];
     export const virtualListDescriptors = [];
-    export const handlers = { "handleAcknowledge": handleAcknowledge, "handlePageTimeline": handlePageTimeline, "getAcknowledgeCount": getAcknowledgeCount, "getPageTimelineCount": getPageTimelineCount };
   

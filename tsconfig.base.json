@@ -23,6 +23,9 @@
       "@jue/runtime-core": [
         "./packages/runtime-core/src/index.ts"
       ],
+      "@jue/runtime-core/channel": [
+        "./packages/runtime-core/src/channel.ts"
+      ],
       "@jue/runtime-core/reactivity": [
         "./packages/runtime-core/src/reactivity.ts"
       ],
@@ -46,6 +49,27 @@
       ],
       "@jue/jsx": [
         "./packages/jsx/src/index.ts"
+      ],
+      "@jue/primitives": [
+        "./packages/primitives/src/index.ts"
+      ],
+      "@jue/authoring-check": [
+        "./packages/authoring-check/src/index.ts"
+      ],
+      "@jue/stream": [
+        "./packages/stream/src/index.ts"
+      ],
+      "@jue/router": [
+        "./packages/router/src/index.ts"
+      ],
+      "@jue/query": [
+        "./packages/query/src/index.ts"
+      ],
+      "@jue/devtrace": [
+        "./packages/devtrace/src/index.ts"
+      ],
+      "@jue/docsgen": [
+        "./packages/docsgen/src/index.ts"
       ],
       "@jue/web": [
         "./packages/web/src/index.ts"

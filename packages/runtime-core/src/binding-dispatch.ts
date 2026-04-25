@@ -9,10 +9,15 @@ export interface BindingDispatchError {
   readonly message: string;
 }
 
+export interface BindingDispatchHooks {
+  switchConditionalRegion?(regionSlot: number, branchIndex: number): Result<void, BindingDispatchError>;
+}
+
 export function dispatchBinding(
   instance: BlockInstance,
   adapter: HostAdapter,
-  bindingSlot: number
+  bindingSlot: number,
+  hooks: BindingDispatchHooks = {}
 ): Result<void, BindingDispatchError> {
   const opcode = instance.blueprint.bindingOpcode[bindingSlot];
 
@@ -32,6 +37,8 @@ export function dispatchBinding(
       return dispatchStyleBinding(instance, adapter, bindingSlot);
     case BindingOpcode.EVENT:
       return dispatchEventBinding(instance, adapter, bindingSlot);
+    case BindingOpcode.REGION_SWITCH:
+      return dispatchRegionSwitchBinding(instance, bindingSlot, hooks);
     default:
       return err({
         code: "UNSUPPORTED_BINDING_OPCODE",
@@ -275,6 +282,61 @@ function dispatchTextBinding(
 
   if (!hostResult.ok) {
     return err(hostResult.error satisfies HostAdapterError);
+  }
+
+  return clearBindingDirty(instance, bindingSlot);
+}
+
+function dispatchRegionSwitchBinding(
+  instance: BlockInstance,
+  bindingSlot: number,
+  hooks: BindingDispatchHooks
+): Result<void, BindingDispatchError> {
+  const dataIndex = instance.blueprint.bindingDataIndex[bindingSlot];
+  if (dataIndex === undefined) {
+    return err({
+      code: "REGION_SWITCH_DATA_MISSING",
+      message: `Region switch binding ${bindingSlot} is missing parameter metadata.`
+    });
+  }
+
+  const signalSlot = instance.blueprint.bindingArgU32[dataIndex];
+  const regionSlot = instance.blueprint.bindingArgU32[dataIndex + 1];
+  const truthyBranch = instance.blueprint.bindingArgU32[dataIndex + 2];
+  const falsyBranch = instance.blueprint.bindingArgU32[dataIndex + 3];
+
+  if (signalSlot === undefined || signalSlot >= instance.signalValues.length) {
+    return err({
+      code: "REGION_SWITCH_SIGNAL_MISSING",
+      message: `Region switch binding ${bindingSlot} references missing signal slot ${signalSlot}.`
+    });
+  }
+
+  if (regionSlot === undefined) {
+    return err({
+      code: "REGION_SWITCH_REGION_MISSING",
+      message: `Region switch binding ${bindingSlot} is missing its region slot.`
+    });
+  }
+
+  if (truthyBranch === undefined || falsyBranch === undefined) {
+    return err({
+      code: "REGION_SWITCH_BRANCH_MISSING",
+      message: `Region switch binding ${bindingSlot} is missing branch metadata.`
+    });
+  }
+
+  if (!hooks.switchConditionalRegion) {
+    return err({
+      code: "REGION_SWITCH_UNSUPPORTED",
+      message: `Region switch binding ${bindingSlot} requires a conditional-region switch hook.`
+    });
+  }
+
+  const targetBranch = instance.signalValues[signalSlot] ? truthyBranch : falsyBranch;
+  const switchResult = hooks.switchConditionalRegion(regionSlot, targetBranch);
+  if (!switchResult.ok) {
+    return switchResult;
   }
 
   return clearBindingDirty(instance, bindingSlot);

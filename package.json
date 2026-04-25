@@ -14,7 +14,8 @@
     "test:coverage:all": "pnpm exec vitest run --coverage --config vitest.coverage-all.config.ts",
     "test:e2e": "pnpm --filter @jue/web-playground test:e2e",
     "dev": "pnpm --filter @jue/web-playground preview",
-    "bench": "pnpm --filter @jue/bench bench"
+    "bench": "pnpm --filter @jue/bench bench",
+    "docs:phase2": "pnpm --filter @jue/docsgen docsgen"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",

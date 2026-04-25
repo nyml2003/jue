@@ -2,7 +2,73 @@
 
     import { createBlueprint } from "@jue/runtime-core";
 
-    let openInvoicesCount = 0;
+    
+
+    
+    export function createRuntime(): {
+      configureSignalRuntime: {
+        (runtime: {
+          read(name: string): any;
+          write(name: string, value: any): void;
+          update(name: string, updater: (value: any) => any): void;
+        }): void;
+      };
+      handlers: Record<string, unknown>;
+    } {
+      let __jueSignalRuntime = {
+        read(name: string): any {
+          throw new Error(`Signal runtime is not configured for ${name}.`);
+        },
+        write(name: string, _value: any): void {
+          throw new Error(`Signal runtime is not configured for ${name}.`);
+        },
+        update(name: string, _updater: (value: any) => any): void {
+          throw new Error(`Signal runtime is not configured for ${name}.`);
+        }
+      };
+
+      function configureSignalRuntime(runtime: {
+        read(name: string): any;
+        write(name: string, value: any): void;
+        update(name: string, updater: (value: any) => any): void;
+      }): void {
+        __jueSignalRuntime = runtime;
+      }
+
+      function __jueCreateSignalRef(name: string) {
+        return {
+          get(): any {
+            return __jueSignalRuntime.read(name);
+          },
+          set(value: any): void {
+            __jueSignalRuntime.write(name, value);
+          },
+          update(updater: (value: any) => any): void {
+            __jueSignalRuntime.update(name, updater);
+          }
+        };
+      }
+
+      const pageClass = __jueCreateSignalRef("pageClass");
+const shellClass = __jueCreateSignalRef("shellClass");
+const eyebrow = __jueCreateSignalRef("eyebrow");
+const title = __jueCreateSignalRef("title");
+const summary = __jueCreateSignalRef("summary");
+const statusClass = __jueCreateSignalRef("statusClass");
+const statusText = __jueCreateSignalRef("statusText");
+const revenueLabel = __jueCreateSignalRef("revenueLabel");
+const revenueValue = __jueCreateSignalRef("revenueValue");
+const invoiceLabel = __jueCreateSignalRef("invoiceLabel");
+const invoiceValue = __jueCreateSignalRef("invoiceValue");
+const renewalLabel = __jueCreateSignalRef("renewalLabel");
+const renewalValue = __jueCreateSignalRef("renewalValue");
+const primaryButtonClass = __jueCreateSignalRef("primaryButtonClass");
+const secondaryButtonClass = __jueCreateSignalRef("secondaryButtonClass");
+const noteTitle = __jueCreateSignalRef("noteTitle");
+const noteBody = __jueCreateSignalRef("noteBody");
+const detailWidth = __jueCreateSignalRef("detailWidth");
+
+      let openInvoicesCount = 0;
 let scheduleReviewCount = 0;
 function handleOpenInvoices() {
   openInvoicesCount += 1;
@@ -19,6 +85,13 @@ function getScheduleReviewCount() {
   return scheduleReviewCount;
 }
 
+      return {
+        configureSignalRuntime,
+        handlers: { "handleOpenInvoices": handleOpenInvoices, "handleScheduleReview": handleScheduleReview, "getOpenInvoicesCount": getOpenInvoicesCount, "getScheduleReviewCount": getScheduleReviewCount }
+      };
+    }
+  
+
     
 
     
@@ -32,7 +105,7 @@ function getScheduleReviewCount() {
       bindingNodeIndex: new Uint32Array([0,1,2,3,4,5,6,7,8,9,10,11,11,13,13,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,36,36,37,39,40,41,41,41]),
       bindingDataIndex: new Uint32Array([0,2,4,2,6,3,8,4,10,12,6,14,16,18,20,22,24,26,7,28,8,30,32,9,34,10,36,38,11,40,12,42,44,15,46,16,48,50,52,54,56,39,58,60,62]),
       bindingArgU32: new Uint32Array([0,42,1,43,18,44,19,45,20,46,21,47,5,48,13,49,50,51,14,52,53,54,22,55,23,56,24,57,25,58,26,59,27,60,28,61,29,62,30,63,31,64,32,65,33,66,34,67,35,68,17,69,36,70,37,71,38,72,40,73,41,74,42,75]),
-      bindingArgRef: ["View", "View", "Text", "", "Text", "", "Text", "", "View", "Text", "", "Button", "Open invoices", "Button", "Schedule review", "View", "View", "Text", "", "Text", "", "View", "Text", "", "Text", "", "View", "Text", "", "Text", "", "View", "Text", "", "Text", "", "View", "Text", "Days to renewal", "Text", "", "Input", "className", "className", "className", "className", "className", "className", "className", "className", "onPress", handleOpenInvoices, "className", "onPress", handleScheduleReview, "className", "className", "className", "className", "className", "className", "className", "className", "className", "className", "className", "className", "className", "className", "width", "opacity", "className", "className", "className", "value", "disabled"],
+      bindingArgRef: ["View", "View", "Text", "", "Text", "", "Text", "", "View", "Text", "", "Button", "Open invoices", "Button", "Schedule review", "View", "View", "Text", "", "Text", "", "View", "Text", "", "Text", "", "View", "Text", "", "Text", "", "View", "Text", "", "Text", "", "View", "Text", "Days to renewal", "Text", "", "Input", "className", "className", "className", "className", "className", "className", "className", "className", "onPress", "__jue_handler__:handleOpenInvoices", "className", "onPress", "__jue_handler__:handleScheduleReview", "className", "className", "className", "className", "className", "className", "className", "className", "className", "className", "className", "className", "className", "className", "width", "opacity", "className", "className", "className", "value", "disabled"],
       regionType: new Uint8Array([]),
       regionAnchorStart: new Uint32Array([]),
       regionAnchorEnd: new Uint32Array([]),
@@ -56,8 +129,8 @@ function getScheduleReviewCount() {
   
     export { blueprint };
     export const signalCount = 43;
+    export const signalSlots = {"pageClass":0,"shellClass":1,"eyebrow":2,"title":3,"summary":4,"statusClass":5,"statusText":6,"revenueLabel":7,"revenueValue":8,"invoiceLabel":9,"invoiceValue":10,"renewalLabel":11,"renewalValue":12,"primaryButtonClass":13,"secondaryButtonClass":14,"noteTitle":15,"noteBody":16,"detailWidth":17};
     export const initialSignalValues = ["account-page","account-shell","CUSTOMER 2048","Account Overview","A customer-facing summary page with explicit signals for labels, counters, and action styling.","account-badge account-badge--healthy","Healthy renewal posture","Monthly revenue","$48,200","Open invoices","3","Renewal date","2026-06-01","account-button account-button--primary","account-button account-button--secondary","Next recommended action","Finance follow-up is the fastest path to reducing friction before the renewal window opens.","100%","account-eyebrow","account-title","account-summary","account-row","account-grid","account-metric","account-metric-label","account-metric-value","account-metric","account-metric-label","account-metric-value","account-metric","account-metric-label","account-metric-value","account-note","account-note-title","account-note-body","account-detail-row",0.96,"account-detail-label","account-detail-value",24,"account-detail-input","Auto-billed",true];
     export const keyedListDescriptors = [];
     export const virtualListDescriptors = [];
-    export const handlers = { "handleOpenInvoices": handleOpenInvoices, "handleScheduleReview": handleScheduleReview, "getOpenInvoicesCount": getOpenInvoicesCount, "getScheduleReviewCount": getScheduleReviewCount };
   

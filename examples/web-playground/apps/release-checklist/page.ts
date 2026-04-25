@@ -1,17 +1,12 @@
 import { err, ok, type Result } from "@jue/shared";
-import { mountTree } from "@jue/web";
+import { mountCompiledModule } from "@jue/web";
 
 import {
   blueprint,
-  handlers as compiledHandlers,
+  createRuntime,
   initialSignalValues,
   signalCount
 } from "./generated/page.generated";
-
-const handlers = compiledHandlers as {
-  readonly getOpenRunbookCount: () => number;
-  readonly getNotifyOpsCount: () => number;
-};
 
 export interface MountedReleaseChecklist {
   getOpenRunbookCount(): number;
@@ -25,19 +20,20 @@ export interface ReleaseChecklistError {
 }
 
 export function mountReleaseChecklist(root: Node): Result<MountedReleaseChecklist, ReleaseChecklistError> {
-  const mountedResult = mountTree({
-    blueprint,
+  const runtime = createRuntime();
+  const handlers = runtime.handlers as {
+    readonly getOpenRunbookCount: () => number;
+    readonly getNotifyOpsCount: () => number;
+  };
+  const mountedResult = mountCompiledModule({
     root,
+    blueprint,
     signalCount,
-    initialSignalValues
+    initialSignalValues,
+    handlers
   });
   if (!mountedResult.ok) {
     return err(mountedResult.error);
-  }
-
-  const flushResult = mountedResult.value.flushInitialBindings();
-  if (!flushResult.ok) {
-    return err(flushResult.error);
   }
 
   return ok({
@@ -48,8 +44,7 @@ export function mountReleaseChecklist(root: Node): Result<MountedReleaseChecklis
       return handlers.getNotifyOpsCount();
     },
     dispose() {
-      return mountedResult.value.dispose();
+      return mountedResult.value.mountedTree.dispose();
     }
   });
 }
-

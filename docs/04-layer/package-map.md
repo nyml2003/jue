@@ -36,11 +36,18 @@
 | `@jue/runtime-core` | 已有 | Kernel | Blueprint、scheduler、binding dispatch、region/resource/signal state |
 | `@jue/compiler` | 已有 | Kernel + Authoring | 根入口保留后端/builder；`./frontend` 暴露 TSX frontend |
 | `@jue/jsx` | 已有 | Official Authoring Layer | JSX 输入面与宿主无关原语入口 |
+| `@jue/primitives` | 已有 | Official Authoring Layer | 官方结构原语与支持矩阵 |
+| `@jue/authoring-check` | 已有 | Official Authoring Layer | 作者侧诊断与支持矩阵入口 |
 | `@jue/web` | 已有 | Official Host Layer | Web host adapter 与挂载实现 |
 | `@jue/examples` | 已有 | Official Tooling Layer | example registry、compile/build 统一入口 |
 | `@jue/inspect` | 已有 | Official Tooling Layer | compiled module / blueprint summary 与 example inspection |
 | `@jue/testkit` | 已有 | Official Tooling Layer | fixture source / compile helper / batch fixture compile |
 | `@jue/bench` | 已有 | Official Tooling Layer | example compilation benchmark 与 root `pnpm bench` 入口 |
+| `@jue/stream` | 已有 | Official Standard Library | signal/channel/resource 桥接与基础 stream operator |
+| `@jue/router` | 已有 | Official Standard Library | route state、history bridge、explicit route handoff |
+| `@jue/query` | 已有 | Official Standard Library | resource 之上的最小 cache / stale / invalidate / preload 层 |
+| `@jue/devtrace` | 已有 | Official Tooling Layer | signal/channel/resource/lane/dirty/flush/region trace collector |
+| `@jue/docsgen` | 已有 | Official Tooling Layer | 从 specs / examples / fixtures 生成文档片段与矩阵 |
 | `@jue/native` | 占位 | Official Host Layer | 先占边界，当前不是主线 |
 
 ## 开发世界的包层次
@@ -173,7 +180,7 @@
 ### `@jue/primitives`
 
 - 层级：Official Authoring Layer
-- 当前状态：建议先逻辑定义，后决定是否独立包
+- 当前状态：已存在
 - 阶段：Phase 2
 - 职责：
   - `Show`
@@ -187,7 +194,7 @@
 ### `@jue/authoring-check`
 
 - 层级：Official Authoring Layer
-- 当前状态：尚未系统存在
+- 当前状态：已存在
 - 阶段：Phase 2
 - 职责：
   - 静态诊断
@@ -236,6 +243,7 @@
 ### `@jue/stream`
 
 - 层级：Official Standard Library
+- 当前状态：已存在
 - 阶段：Phase 2
 - 职责：
   - stream core
@@ -250,6 +258,7 @@
 ### `@jue/router`
 
 - 层级：Official Standard Library
+- 当前状态：已存在
 - 阶段：Phase 2
 - 职责：
   - route state
@@ -260,6 +269,7 @@
 ### `@jue/query`
 
 - 层级：Official Standard Library
+- 当前状态：已存在
 - 阶段：Phase 2
 - 职责：
   - resource helper
@@ -316,6 +326,7 @@
 ### `@jue/devtrace`
 
 - 层级：Official Tooling Layer
+- 当前状态：已存在
 - 阶段：Phase 2
 - 职责：
   - signal write
@@ -360,6 +371,7 @@
 ### `@jue/docsgen`
 
 - 层级：Official Tooling Layer
+- 当前状态：已存在
 - 阶段：Phase 2
 - 职责：
   - 从 specs / examples / fixtures 生成文档片段和支持矩阵
@@ -457,13 +469,13 @@
 
 ## 当前建议
 
-`Phase 1` 已经完成。
+`Phase 1` 已完成，但 `Phase 2` 还不能宣布完成。
 
-现在更合理的目标不是继续补这一层，而是：
+现在更合理的目标不是继续补包面，而是：
 
 1. 保持 `shared / runtime-core / compiler / jsx / web` 的边界稳定
-2. 把 `examples / inspect / testkit / bench` 当作长期验证基线维护
-3. 进入 `Phase 2`，但不要为了上层体验反向改坏 Phase 1 contract
+2. 把 `primitives / authoring-check / stream / router / query / devtrace / docsgen` 从“包存在”推进到“能力真实支持”
+3. 只有在新验收线下通过之后，才进入 `Phase 3`
 
 ## 结论
 

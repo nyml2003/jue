@@ -20,11 +20,18 @@ export interface CompiledModule {
   readonly code: string;
   readonly blueprint: SerializedBlueprint;
   readonly signalCount: number;
+  readonly signalSlots: Readonly<Record<string, number>>;
   readonly initialSignalValues: readonly unknown[];
   readonly keyedListDescriptors: readonly SerializedKeyedListDescriptor[];
   readonly virtualListDescriptors: readonly SerializedVirtualListDescriptor[];
   readonly runtimeCode: string;
   readonly handlerNames: readonly string[];
+}
+
+export interface SignalRuntimeBridge {
+  read(name: string): unknown;
+  write(name: string, value: unknown): void;
+  update(name: string, updater: (value: unknown) => unknown): void;
 }
 
 function resolveGenerateFunction(value: unknown): GenerateFunction {
@@ -112,14 +119,17 @@ export function compileModule(
     code: createCompiledModuleCode({
       blueprint: serialized,
       signalCount: lowered.value.signalCount,
+      signalSlots: block.value.signalSlots,
       initialSignalValues: lowered.value.initialSignalValues,
       keyedListDescriptors,
       virtualListDescriptors,
+      runtimeImportCode: runtime.importCode,
       runtimeCode: runtime.code,
       handlerNames: runtime.handlerNames
     }),
     blueprint: serialized,
     signalCount: lowered.value.signalCount,
+    signalSlots: block.value.signalSlots,
     initialSignalValues: lowered.value.initialSignalValues,
     keyedListDescriptors,
     virtualListDescriptors,
@@ -135,20 +145,14 @@ function createHandlerMarker(name: string): string {
 function createCompiledModuleCode(input: {
   readonly blueprint: SerializedBlueprint;
   readonly signalCount: number;
+  readonly signalSlots: Readonly<Record<string, number>>;
   readonly initialSignalValues: readonly unknown[];
   readonly keyedListDescriptors: readonly SerializedKeyedListDescriptor[];
   readonly virtualListDescriptors: readonly SerializedVirtualListDescriptor[];
+  readonly runtimeImportCode: string;
   readonly runtimeCode: string;
   readonly handlerNames: readonly string[];
 }): string {
-  const handlerEntries = input.handlerNames
-    .map(name => `${JSON.stringify(name)}: ${name}`)
-    .join(", ");
-  const bindingArgRef = `[${input.blueprint.bindingArgRef
-    .map(value => typeof value === "string" && value.startsWith("__jue_handler__:")
-      ? value.slice("__jue_handler__:".length)
-      : JSON.stringify(value))
-    .join(", ")}]`;
   const templateDeclarations = [
     ...input.keyedListDescriptors.map((descriptor, index) => ({
       constName: `keyedListTemplate${index}`,
@@ -188,33 +192,132 @@ function createCompiledModuleCode(input: {
       }
     }`)
     .join(",\n");
+  const runtimeModuleCode = createRuntimeModuleCode(
+    input.signalSlots,
+    input.runtimeCode,
+    input.handlerNames
+  );
 
   return `
     import { createBlueprint } from "@jue/runtime-core";
 
-    ${input.runtimeCode}
+    ${input.runtimeImportCode}
+
+    ${runtimeModuleCode}
 
     ${templateDeclarations}
 
-    ${createBlueprintDeclaration("blueprint", input.blueprint, bindingArgRef)}
+    ${createBlueprintDeclaration("blueprint", input.blueprint)}
     export { blueprint };
     export const signalCount = ${JSON.stringify(input.signalCount)};
+    export const signalSlots = ${JSON.stringify(input.signalSlots)};
     export const initialSignalValues = ${JSON.stringify(input.initialSignalValues)};
     export const keyedListDescriptors = [${keyedListDescriptors}];
     export const virtualListDescriptors = [${virtualListDescriptors}];
-    export const handlers = { ${handlerEntries} };
+  `;
+}
+
+function createRuntimeModuleCode(
+  signalSlots: Readonly<Record<string, number>>,
+  runtimeCode: string,
+  handlerNames: readonly string[]
+): string {
+  const signalNames = Object.keys(signalSlots);
+  const handlerEntries = handlerNames
+    .map(name => `${JSON.stringify(name)}: ${name}`)
+    .join(", ");
+  const runtimeBody = runtimeCode.trim();
+
+  if (signalNames.length === 0) {
+    return `
+      export function createRuntime(): {
+        handlers: Record<string, unknown>;
+      } {
+        ${runtimeBody}
+        return {
+          handlers: { ${handlerEntries} }
+        };
+      }
+    `;
+  }
+
+  const declarations = signalNames
+    .map(name => `const ${name} = __jueCreateSignalRef(${JSON.stringify(name)});`)
+    .join("\n");
+
+  return `
+    export function createRuntime(): {
+      configureSignalRuntime: {
+        (runtime: {
+          read(name: string): any;
+          write(name: string, value: any): void;
+          update(name: string, updater: (value: any) => any): void;
+        }): void;
+      };
+      handlers: Record<string, unknown>;
+    } {
+      let __jueSignalRuntime = {
+        read(name: string): any {
+          throw new Error(\`Signal runtime is not configured for \${name}.\`);
+        },
+        write(name: string, _value: any): void {
+          throw new Error(\`Signal runtime is not configured for \${name}.\`);
+        },
+        update(name: string, _updater: (value: any) => any): void {
+          throw new Error(\`Signal runtime is not configured for \${name}.\`);
+        }
+      };
+
+      function configureSignalRuntime(runtime: {
+        read(name: string): any;
+        write(name: string, value: any): void;
+        update(name: string, updater: (value: any) => any): void;
+      }): void {
+        __jueSignalRuntime = runtime;
+      }
+
+      function __jueCreateSignalRef(name: string) {
+        return {
+          get(): any {
+            return __jueSignalRuntime.read(name);
+          },
+          set(value: any): void {
+            __jueSignalRuntime.write(name, value);
+          },
+          update(updater: (value: any) => any): void {
+            __jueSignalRuntime.update(name, updater);
+          }
+        };
+      }
+
+      ${declarations}
+
+      ${runtimeBody}
+
+      return {
+        configureSignalRuntime,
+        handlers: { ${handlerEntries} }
+      };
+    }
   `;
 }
 
 function buildRuntimeStatements(ast: t.File): {
+  readonly importCode: string;
   readonly code: string;
   readonly handlerNames: readonly string[];
 } {
+  const imports: t.ImportDeclaration[] = [];
   const statements: t.Statement[] = [];
   const handlerNames: string[] = [];
 
   for (const statement of ast.program.body) {
     if (t.isImportDeclaration(statement)) {
+      if (statement.source.value === "@jue/jsx") {
+        continue;
+      }
+
+      imports.push(statement);
       continue;
     }
 
@@ -228,13 +331,22 @@ function buildRuntimeStatements(ast: t.File): {
       continue;
     }
 
+    if (t.isTSInterfaceDeclaration(statement) || t.isTSTypeAliasDeclaration(statement)) {
+      statements.push(statement);
+      continue;
+    }
+
     if (t.isVariableDeclaration(statement)) {
+      if (statement.declarations.some(isSignalFactoryDeclaration)) {
+        continue;
+      }
       statements.push(statement);
     }
   }
 
   if (statements.length === 0) {
     return {
+      importCode: imports.length === 0 ? "" : generate(t.file(t.program(imports))).code,
       code: "",
       handlerNames
     };
@@ -242,9 +354,18 @@ function buildRuntimeStatements(ast: t.File): {
 
   const file = t.file(t.program(statements));
   return {
+    importCode: imports.length === 0 ? "" : generate(t.file(t.program(imports))).code,
     code: generate(file).code,
     handlerNames
   };
+}
+
+function isSignalFactoryDeclaration(declaration: t.VariableDeclarator): boolean {
+  if (!declaration.init || !t.isCallExpression(declaration.init) || !t.isIdentifier(declaration.init.callee)) {
+    return false;
+  }
+
+  return declaration.init.callee.name === "createSignal" || declaration.init.callee.name === "signal";
 }
 
 function isRenderFunctionStatement(statement: t.Statement): boolean {
@@ -321,10 +442,9 @@ function serializeVirtualListDescriptor(descriptor: CompiledVirtualListDescripto
 
 function createBlueprintDeclaration(
   constName: string,
-  blueprint: SerializedBlueprint,
-  bindingArgRefOverride?: string
+  blueprint: SerializedBlueprint
 ): string {
-  const bindingArgRef = bindingArgRefOverride ?? `[${blueprint.bindingArgRef.map(value => JSON.stringify(value)).join(", ")}]`;
+  const bindingArgRef = `[${blueprint.bindingArgRef.map(value => JSON.stringify(value)).join(", ")}]`;
   return `
     const ${constName}Result = createBlueprint({
       nodeCount: ${JSON.stringify(blueprint.nodeCount)},

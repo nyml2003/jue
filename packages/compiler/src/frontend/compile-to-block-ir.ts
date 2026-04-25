@@ -19,7 +19,7 @@ interface FrontendState {
   initialSignalValues: unknown[];
   jsxHostPrimitives: Set<string>;
   jsxStructurePrimitives: Set<string>;
-  createSignalLocalNames: Set<string>;
+  signalFactoryLocalNames: Set<string>;
   staticInitializerAliases: Map<string, unknown>;
   structures: CompiledStructureDescriptor[];
   templateScope: TemplateScope | null;
@@ -35,6 +35,13 @@ interface TemplateScope {
 type CompiledStructureDescriptor =
   | CompiledKeyedListDescriptor
   | CompiledVirtualListDescriptor;
+
+type StructurePrimitiveName =
+  | "Show"
+  | "List"
+  | "VirtualList"
+  | "Portal"
+  | "Boundary";
 
 export interface CompiledTemplateDescriptor {
   readonly block: BlockIR;
@@ -68,6 +75,7 @@ export interface CompileToBlockIRError {
 export interface CompileToBlockIRResult {
   readonly block: BlockIR;
   readonly structures: readonly CompiledStructureDescriptor[];
+  readonly signalSlots: Readonly<Record<string, number>>;
 }
 
 export interface CompileSourceToBlockIROptions {
@@ -118,7 +126,7 @@ export function compileSourceToBlockIR(
     initialSignalValues: [],
     jsxHostPrimitives: imports.jsxHostPrimitives,
     jsxStructurePrimitives: imports.jsxStructurePrimitives,
-    createSignalLocalNames: imports.createSignalLocalNames,
+    signalFactoryLocalNames: imports.createSignalLocalNames,
     staticInitializerAliases: new Map<string, unknown>(),
     structures: [],
     templateScope: null
@@ -142,7 +150,10 @@ export function compileSourceToBlockIR(
 
   return ok({
     block: block.value,
-    structures: state.structures
+    structures: state.structures,
+    signalSlots: Object.fromEntries(
+      [...state.signalSymbols.entries()].sort((left, right) => left[1] - right[1])
+    )
   });
 }
 
@@ -175,7 +186,7 @@ function collectJueJsxImports(ast: t.File): {
         continue;
       }
 
-      if (specifier.imported.name === "createSignal") {
+      if (specifier.imported.name === "createSignal" || specifier.imported.name === "signal") {
         createSignalLocalNames.add(specifier.local.name);
       }
     }
@@ -200,33 +211,40 @@ function collectRenderSignalDeclarations(
     });
   }
 
-  for (const statement of renderFunction.body.body) {
-    if (!t.isVariableDeclaration(statement)) {
-      continue;
-    }
+  const declarationBlocks: t.Statement[][] = [
+    ast.program.body,
+    renderFunction.body.body
+  ];
 
-    if (statement.kind !== "const") {
-      return err({
-        code: "UNSUPPORTED_SIGNAL_DECLARATION",
-        message: "compile() only supports const signal declarations."
-      });
-    }
-
-    for (const declaration of statement.declarations) {
-      collectStaticInitializerAlias(declaration, state);
-
-      const signalDeclaration = readCreateSignalDeclaration(declaration, state);
-      if (signalDeclaration === null) {
+  for (const block of declarationBlocks) {
+    for (const statement of block) {
+      if (!t.isVariableDeclaration(statement)) {
         continue;
       }
 
-      if (!signalDeclaration.ok) {
-        return signalDeclaration;
-      }
+      for (const declaration of statement.declarations) {
+        collectStaticInitializerAlias(declaration, state);
 
-      const slot = allocateSignalSlot(state, signalDeclaration.value.name);
-      state.signalSymbols.set(signalDeclaration.value.name, slot);
-      mergeInitialSignalValues(state, slot, signalDeclaration.value.initialValue);
+        const signalDeclaration = readCreateSignalDeclaration(declaration, state);
+        if (signalDeclaration === null) {
+          continue;
+        }
+
+        if (statement.kind !== "const") {
+          return err({
+            code: "UNSUPPORTED_SIGNAL_DECLARATION",
+            message: "compile() only supports const signal declarations."
+          });
+        }
+
+        if (!signalDeclaration.ok) {
+          return signalDeclaration;
+        }
+
+        const slot = allocateSignalSlot(state, signalDeclaration.value.name);
+        state.signalSymbols.set(signalDeclaration.value.name, slot);
+        mergeInitialSignalValues(state, slot, signalDeclaration.value.initialValue);
+      }
     }
   }
 
@@ -246,7 +264,7 @@ function readCreateSignalDeclaration(
     return null;
   }
 
-  if (!state.createSignalLocalNames.has(init.callee.name)) {
+  if (!state.signalFactoryLocalNames.has(init.callee.name)) {
     return null;
   }
 
@@ -294,7 +312,7 @@ function collectStaticInitializerAlias(
     return;
   }
 
-  if (t.isCallExpression(declaration.init) && t.isIdentifier(declaration.init.callee) && state.createSignalLocalNames.has(declaration.init.callee.name)) {
+  if (t.isCallExpression(declaration.init) && t.isIdentifier(declaration.init.callee) && state.signalFactoryLocalNames.has(declaration.init.callee.name)) {
     return;
   }
 
@@ -680,7 +698,7 @@ type JsxTagKind =
     }
   | {
       readonly kind: "structure";
-      readonly primitive: "List" | "VirtualList";
+      readonly primitive: StructurePrimitiveName;
     };
 
 function lowerHostJsxElement(
@@ -769,12 +787,23 @@ function lowerStructurePrimitive(
   element: t.JSXElement,
   state: FrontendState,
   parent: number,
-  primitive: "List" | "VirtualList"
+  primitive: StructurePrimitiveName
 ): Result<void, CompileToBlockIRError> {
   if (state.templateScope && !state.templateScope.allowStructurePrimitives) {
     return err({
       code: "UNSUPPORTED_COMPONENT_CALL",
       message: `compile() does not support nested structure primitive <${primitive}> inside template callbacks yet.`
+    });
+  }
+
+  if (primitive === "Show") {
+    return lowerShowPrimitive(element, state, parent);
+  }
+
+  if (primitive === "Portal" || primitive === "Boundary") {
+    return err({
+      code: "UNSUPPORTED_COMPONENT_CALL",
+      message: `compile() does not support <${primitive}> yet.`
     });
   }
 
@@ -893,6 +922,145 @@ function lowerStructurePrimitive(
   return ok(undefined);
 }
 
+function lowerShowPrimitive(
+  element: t.JSXElement,
+  state: FrontendState,
+  parent: number
+): Result<void, CompileToBlockIRError> {
+  const whenAttribute = readRequiredStructureAttribute(element, "when");
+  if (!whenAttribute.ok) {
+    return whenAttribute;
+  }
+
+  const whenExpression = getAttributeExpression(whenAttribute.value, "Show", "when");
+  if (!whenExpression.ok) {
+    return whenExpression;
+  }
+
+  const signalSlot = readSignalReference(whenExpression.value, state);
+  if (!signalSlot.ok) {
+    return signalSlot;
+  }
+
+  const consequentBranch = lowerShowBranch(readShowChild(element), state, parent);
+  if (!consequentBranch.ok) {
+    return consequentBranch;
+  }
+
+  const fallbackAttribute = readOptionalStructureAttribute(element, "fallback");
+  if (!fallbackAttribute.ok) {
+    return fallbackAttribute;
+  }
+
+  const alternateBranch = fallbackAttribute.value === null
+    ? createEmptyConditionalBranch(state, parent)
+    : lowerShowFallbackBranch(fallbackAttribute.value, state, parent);
+  if (!alternateBranch.ok) {
+    return alternateBranch;
+  }
+
+  const regionSlot = state.builder.defineConditionalRegion({
+    anchorStartNode: consequentBranch.value.startNode,
+    anchorEndNode: alternateBranch.value.endNode,
+    branches: [
+      consequentBranch.value,
+      alternateBranch.value
+    ]
+  });
+  state.builder.bindRegionSwitch(regionSlot, signalSlot.value, 0, 1);
+
+  return ok(undefined);
+}
+
+function readShowChild(element: t.JSXElement): t.JSXElement | null {
+  let childElement: t.JSXElement | null = null;
+
+  for (const child of element.children) {
+    if (t.isJSXText(child) && normalizeJsxText(child.value).length === 0) {
+      continue;
+    }
+
+    if (!t.isJSXElement(child) || childElement !== null) {
+      return null;
+    }
+
+    childElement = child;
+  }
+
+  return childElement;
+}
+
+function lowerShowBranch(
+  child: t.JSXElement | null,
+  state: FrontendState,
+  parent: number
+): Result<{ readonly startNode: number; readonly endNode: number }, CompileToBlockIRError> {
+  if (child === null) {
+    return err({
+      code: "UNSUPPORTED_COMPONENT_CALL",
+      message: "compile() requires <Show> to define a single JSX element child."
+    });
+  }
+
+  const startNode = lowerHostJsxElement(child, state, parent);
+  if (!startNode.ok) {
+    return startNode;
+  }
+
+  return ok({
+    startNode: startNode.value,
+    endNode: startNode.value
+  });
+}
+
+function lowerShowFallbackBranch(
+  attribute: t.JSXAttribute,
+  state: FrontendState,
+  parent: number
+): Result<{ readonly startNode: number; readonly endNode: number }, CompileToBlockIRError> {
+  const expression = getAttributeExpression(attribute, "Show", "fallback");
+  if (!expression.ok) {
+    return expression;
+  }
+
+  if (t.isNullLiteral(expression.value)) {
+    return createEmptyConditionalBranch(state, parent);
+  }
+
+  if (!t.isJSXElement(expression.value)) {
+    return err({
+      code: "UNSUPPORTED_COMPONENT_CALL",
+      message: "compile() requires <Show>.fallback to be a JSX element or null."
+    });
+  }
+
+  const startNode = lowerHostJsxElement(expression.value, state, parent);
+  if (!startNode.ok) {
+    return startNode;
+  }
+
+  return ok({
+    startNode: startNode.value,
+    endNode: startNode.value
+  });
+}
+
+function createEmptyConditionalBranch(
+  state: FrontendState,
+  parent: number
+): Result<{ readonly startNode: number; readonly endNode: number }, CompileToBlockIRError> {
+  const textNode = state.builder.text("");
+  const appendResult = state.builder.append(parent, textNode);
+  if (!appendResult.ok) {
+    return err(appendResult.error);
+  }
+
+  return ok({
+    startNode: textNode,
+    endNode: textNode
+  });
+}
+
 function readRequiredStructureAttribute(
   element: t.JSXElement,
   attributeName: string
@@ -921,9 +1089,34 @@ function readRequiredStructureAttribute(
   });
 }
 
+function readOptionalStructureAttribute(
+  element: t.JSXElement,
+  attributeName: string
+): Result<t.JSXAttribute | null, CompileToBlockIRError> {
+  for (const attribute of element.openingElement.attributes) {
+    if (t.isJSXSpreadAttribute(attribute)) {
+      return err({
+        code: "UNSUPPORTED_JSX_SPREAD",
+        message: "compile() does not support JSX spread attributes yet."
+      });
+    }
+
+    const name = getJsxAttributeName(attribute.name);
+    if (!name.ok) {
+      return name;
+    }
+
+    if (name.value === attributeName) {
+      return ok(attribute);
+    }
+  }
+
+  return ok(null);
+}
+
 function getAttributeExpression(
   attribute: t.JSXAttribute,
-  primitive: "List" | "VirtualList",
+  primitive: StructurePrimitiveName,
   attributeName: string
 ): Result<t.Expression, CompileToBlockIRError> {
   if (!attribute.value) {
@@ -1008,7 +1201,7 @@ function compileTemplateCallback(
     initialSignalValues: [],
     jsxHostPrimitives: state.jsxHostPrimitives,
     jsxStructurePrimitives: state.jsxStructurePrimitives,
-    createSignalLocalNames: new Set<string>(),
+    signalFactoryLocalNames: new Set<string>(),
     staticInitializerAliases: new Map<string, unknown>(),
     structures: [],
     templateScope: {
@@ -1187,10 +1380,6 @@ function lowerJsxAttributes(
     }
 
     const staticExpression = readStaticExpressionValue(expression);
-    if (staticExpression.kind === "error") {
-      return err(staticExpression.error);
-    }
-
     if (staticExpression.kind === "static") {
       bindStaticAttributeValue(state, node, name.value, staticExpression.value);
       continue;
@@ -1198,7 +1387,9 @@ function lowerJsxAttributes(
 
     const signalSlotResult = readSignalReference(expression, state);
     if (!signalSlotResult.ok) {
-      return signalSlotResult;
+      return staticExpression.kind === "error"
+        ? err(staticExpression.error)
+        : signalSlotResult;
     }
 
     if (name.value.startsWith("style:")) {
@@ -1226,10 +1417,6 @@ function lowerJsxExpressionChild(
   }
 
   const staticExpression = readStaticExpressionValue(expression);
-  if (staticExpression.kind === "error") {
-    return err(staticExpression.error);
-  }
-
   if (staticExpression.kind === "static") {
     if (staticExpression.value === null || typeof staticExpression.value === "boolean") {
       return ok(undefined);
@@ -1240,7 +1427,9 @@ function lowerJsxExpressionChild(
 
   const signalSlotResult = readSignalReference(expression, state);
   if (!signalSlotResult.ok) {
-    return signalSlotResult;
+    return staticExpression.kind === "error"
+      ? err(staticExpression.error)
+      : signalSlotResult;
   }
 
   const textNode = state.builder.text("");
@@ -1282,7 +1471,7 @@ function lowerConditionalExpression(
 
   // The runtime switches conditional regions by anchor range, so frontend lowering must
   // materialize both branch ranges before it can describe the region metadata.
-  state.builder.defineConditionalRegion({
+  const regionSlot = state.builder.defineConditionalRegion({
     anchorStartNode: consequentResult.value,
     anchorEndNode: alternateResult.value,
     branches: [
@@ -1290,6 +1479,7 @@ function lowerConditionalExpression(
       { startNode: alternateResult.value, endNode: alternateResult.value }
     ]
   });
+  state.builder.bindRegionSwitch(regionSlot, testResult.value, 0, 1);
 
   return ok(undefined);
 }
@@ -1371,6 +1561,11 @@ function readSignalReference(
   }
 
   if (!t.isIdentifier(expression)) {
+    const getterReference = readSignalGetterReference(expression, state);
+    if (getterReference.ok) {
+      return getterReference;
+    }
+
     return err({
       code: "UNSUPPORTED_EXPRESSION",
       message: `compile() currently only supports identifier expressions, got ${expression.type}.`
@@ -1385,6 +1580,40 @@ function readSignalReference(
   return err({
     code: "SIGNAL_REFERENCE_MISSING",
     message: `Signal ${expression.name} is not declared with createSignal().`
+  });
+}
+
+function readSignalGetterReference(
+  expression: t.Expression,
+  state: FrontendState
+): Result<number, CompileToBlockIRError> {
+  if (!t.isCallExpression(expression) || expression.arguments.length !== 0) {
+    return err({
+      code: "UNSUPPORTED_EXPRESSION",
+      message: `compile() currently only supports identifier expressions, got ${expression.type}.`
+    });
+  }
+
+  if (
+    !t.isMemberExpression(expression.callee) ||
+    expression.callee.computed ||
+    !t.isIdentifier(expression.callee.object) ||
+    !t.isIdentifier(expression.callee.property, { name: "get" })
+  ) {
+    return err({
+      code: "UNSUPPORTED_EXPRESSION",
+      message: `compile() currently only supports identifier expressions, got ${expression.type}.`
+    });
+  }
+
+  const slot = state.signalSymbols.get(expression.callee.object.name);
+  if (slot !== undefined) {
+    return ok(slot);
+  }
+
+  return err({
+    code: "SIGNAL_REFERENCE_MISSING",
+    message: `Signal ${expression.callee.object.name} is not declared with createSignal().`
   });
 }
 
@@ -1407,6 +1636,19 @@ function readStyleObjectKey(
 
 function readStaticExpressionValue(expression: t.Expression): StaticExpressionReadResult {
   if (t.isIdentifier(expression) || t.isMemberExpression(expression)) {
+    return {
+      kind: "dynamic"
+    };
+  }
+
+  if (
+    t.isCallExpression(expression) &&
+    t.isMemberExpression(expression.callee) &&
+    !expression.callee.computed &&
+    t.isIdentifier(expression.callee.object) &&
+    t.isIdentifier(expression.callee.property, { name: "get" }) &&
+    expression.arguments.length === 0
+  ) {
     return {
       kind: "dynamic"
     };
@@ -1572,8 +1814,11 @@ function getJsxTagKind(
 
   if (state.jsxStructurePrimitives.has(name.name)) {
     switch (name.name) {
+      case "Show":
       case "List":
       case "VirtualList":
+      case "Portal":
+      case "Boundary":
         return ok({
           kind: "structure",
           primitive: name.name
@@ -1604,7 +1849,11 @@ function isHostPrimitiveName(name: string): boolean {
 }
 
 function isStructurePrimitiveName(name: string): boolean {
-  return name === "List" || name === "VirtualList";
+  return name === "Show" ||
+    name === "List" ||
+    name === "VirtualList" ||
+    name === "Portal" ||
+    name === "Boundary";
 }
 
 function getJsxAttributeName(

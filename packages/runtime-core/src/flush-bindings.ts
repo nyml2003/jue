@@ -1,7 +1,7 @@
 import { LANE_COUNT, ok, type Result } from "@jue/shared";
 
 import { beginSchedulerFlush, completeSchedulerFlush, type SchedulerState } from "./scheduler-state";
-import { dispatchBinding, type BindingDispatchError } from "./binding-dispatch";
+import { dispatchBinding, type BindingDispatchError, type BindingDispatchHooks } from "./binding-dispatch";
 import type { BlockInstance, HostAdapter } from "./types";
 
 export interface FlushBindingsResult {
@@ -12,7 +12,8 @@ export interface FlushBindingsResult {
 export function flushBindingQueue(
   instance: BlockInstance,
   scheduler: SchedulerState,
-  adapter: HostAdapter
+  adapter: HostAdapter,
+  hooks: BindingDispatchHooks = {}
 ): Result<FlushBindingsResult, BindingDispatchError> {
   if (scheduler.scheduledLanes === 0 && scheduler.flushingLanes === 0) {
     return ok({
@@ -49,7 +50,7 @@ export function flushBindingQueue(
         continue;
       }
 
-      const dispatchResult = dispatchBinding(instance, adapter, bindingSlot);
+      const dispatchResult = dispatchBinding(instance, adapter, bindingSlot, hooks);
 
       if (!dispatchResult.ok) {
         return dispatchResult;

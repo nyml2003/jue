@@ -10,6 +10,7 @@ export default [
       "coverage/**",
       "node_modules/**",
       ".omx/**",
+      "examples/**/generated/**",
       "**/node_modules/**",
       "eslint.config.mjs",
       "vitest.config.ts",
@@ -66,7 +67,8 @@ export default [
     ],
     rules: {
       "@typescript-eslint/no-unused-vars": "off",
-      "@typescript-eslint/no-unsafe-return": "off"
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off"
     }
   }
 ];

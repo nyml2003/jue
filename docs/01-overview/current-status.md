@@ -6,68 +6,79 @@
 
 ## 总结
 
-`jue` 的 `Phase 1` 基线已经闭环。
+`jue` 的 `Phase 2` 还没有通过新的支持验收线。
 
-现在的仓库不再只是：
+当前仓库已经不只是：
 
-- 一个 runtime
-- 一个 compiler
+- 一个 kernel
+- 一组 Phase 1 tooling
 
-而是已经形成了第一版一方系统基线：
+而是已经进入“Phase 2 包面已落地，但支持尚未全部坐实”的状态：
 
-- kernel 主链稳定
-- authoring 输入面稳定
-- Web host 成为首个完整宿主
-- examples / inspect / testkit / bench 形成最小验证闭环
+- `@jue/primitives / @jue/authoring-check / @jue/stream / @jue/router / @jue/query / @jue/devtrace / @jue/docsgen` 已落成第一版包面
+- 但只有通过“非调试、端到端、完备用例”的能力，才允许标成支持
 
 ## 当前已经成立的能力
 
-### 1. Kernel 主链
+### 1. Kernel 与 Phase 1 基线仍然稳定
 
-- `BlockIR -> lowering -> Blueprint -> runtime` 主链已经成立
-- `@jue/compiler/ir`、`@jue/compiler/lowering`、`@jue/compiler/builder` 已作为明确子边界存在
-- `@jue/runtime-core/reactivity`、`@jue/runtime-core/host-contract` 已作为明确子边界存在
-- `runtime-core` 的 region / resource / lane / dirty / flush 语义已经有真实测试覆盖
+- `BlockIR -> lowering -> Blueprint -> runtime` 主链仍然稳定
+- `@jue/compiler/ir`、`@jue/compiler/lowering`、`@jue/compiler/builder` 仍作为明确子边界存在
+- `@jue/runtime-core/reactivity`、`@jue/runtime-core/host-contract` 仍作为明确子边界存在
+- 新增 `@jue/runtime-core/channel` 作为显式消息通道最小能力面
 
-### 2. Authoring 边界
+### 2. Authoring 层已经进入 Phase 2 施工期
 
-- `@jue/compiler` 根入口保留后端与 builder 能力
-- `compile()` 已迁移到 `@jue/compiler/frontend`
-- frontend 仍然是受限输入面，但已支持当前 Phase 1 所需的最小 TSX authoring：
-  - 单根 JSX Element
-  - 静态 element / text
-  - `{identifier}` 文本绑定
-  - 简单 prop 绑定
-  - 直接命名函数 event handler
-  - `cond ? <A /> : <B />`
-  - `List` / `VirtualList` 的最小 authoring 形状
-- `compileModule()` 已可把 `.component.tsx` 编译成可执行模块
+- `@jue/primitives` 已存在，并给出官方结构原语支持矩阵
+- `@jue/jsx` 已通过 `@jue/primitives` 暴露 `Show / List / VirtualList / Portal / Boundary`
+- compiler/frontend 当前已经落地这些 support point：
+  - `Show`
+  - `List`
+  - `VirtualList`
+- 但这不等于这些能力已经被正式支持。
+- `Portal / Boundary` 已被正式保留为原语边界，但当前仍明确处于未实现状态
+- `@jue/authoring-check` 已能：
+  - 收集 source 里引用到的结构原语
+  - 输出支持矩阵
+  - 把 compile 结果转成作者侧诊断
 
-### 3. Web Host 与 Examples
+### 3. 第一批官方 stdlib 包已存在
 
-- `CONDITIONAL`、`NESTED_BLOCK`、`KEYED_LIST`、`VIRTUAL_LIST` 都已有真实链路
-- `examples/web-playground/apps/*` 已成为真实回归面，而不是演示页集合
-- `scripts/compile-example-components.ts` 现在通过 `@jue/examples` 统一发现 app 并生成 `generated/page.generated.ts`
-- `pnpm build` 已把 package build 和 example build 放进同一条验证链路
+- `@jue/stream`
+  - `createStream`
+  - `fromSignal`
+  - `fromChannel`
+  - `toSignal`
+  - `toChannel`
+  - `toResource`
+  - `map / filter / scan / distinctUntilChanged / merge / takeUntil`
+- `@jue/router`
+  - `createHistoryBridge`
+  - `createRouter`
+  - route state / query / param match
+- `@jue/query`
+  - `createQueryClient`
+  - `createQuery`
+  - `query`
+  - cache entry / stale / invalidate / preload / reload
 
-### 4. Tooling 闭环
+### 4. Phase 2 Tooling 已存在
 
-当前仓库已经有这些第一方 tooling surface：
+- `@jue/devtrace`
+  - signal / channel / resource / navigation / docsgen trace event
+  - collector / formatter
+- `@jue/docsgen`
+  - Phase 2 package matrix
+  - example registry snippet
+  - CLI 入口
+- 根命令已增加：
+  - `pnpm docs:phase2`
 
-- `@jue/examples`
-  - example registry
-  - app 路径约定
-  - compile / build 脚本统一入口
-- `@jue/inspect`
-  - compiled module / blueprint summary
-  - example inspection
-- `@jue/testkit`
-  - example fixture source loading
-  - fixture compile helper
-  - batch fixture compile
-- `@jue/bench`
-  - example compilation benchmark
-  - root `pnpm bench` 入口
+### 5. 现有 examples 与 tooling 继续作为回归基线
+
+- `@jue/examples` 仍承担 example registry
+- `@jue/inspect`、`@jue/testkit`、`@jue/bench` 仍是 Phase 1 的验证基线
+- `examples/web-playground/apps/*` 继续承担真实回归面
 
 ## 当前 workspace 包
 
@@ -77,12 +88,19 @@
 - `@jue/runtime-core`
 - `@jue/compiler`
 - `@jue/jsx`
+- `@jue/primitives`
+- `@jue/authoring-check`
+- `@jue/stream`
+- `@jue/router`
+- `@jue/query`
+- `@jue/devtrace`
+- `@jue/docsgen`
 - `@jue/web`
-- `@jue/native`（占位）
 - `@jue/examples`
 - `@jue/inspect`
 - `@jue/testkit`
 - `@jue/bench`
+- `@jue/native`（占位）
 
 ## 最新验证结果
 
@@ -90,33 +108,30 @@
 
 - `pnpm lint`：通过
 - `pnpm typecheck`：通过
-- `pnpm test`：通过，`23` 个测试文件、`173` 个测试全部通过
+- `pnpm test`：通过，`31` 个测试文件、`195` 个测试全部通过
 - `pnpm build`：通过
+- `pnpm bench`：通过
+- `pnpm docs:phase2`：通过
 - `pnpm test:e2e -- --grep virtual-list-lab`：通过
-- `pnpm bench`：通过，并输出 example compilation 基准表
 
-这意味着当前仓库已经满足 `Phase 1` 文档里的退出条件：
+这并不意味着当前仓库已经满足 `Phase 2` 退出条件。
 
-1. `BlockIR / lowering / Blueprint` 契约已可长期作为后端边界。
-2. `runtime-core` 的 region / channel / resource / lane 模型已形成可验证基线。
-3. Web host 已能承担一方系统的首个完整宿主角色。
-4. examples / testkit / inspect / bench 已形成最小验证闭环。
-5. frontend 仍是受限输入面，但不会继续反向污染后端契约。
+新的支持标准是：
+
+1. 除调试/工具能力外，没有非调试、端到端、完备用例的能力，一律视为未支持。
+2. example 必须走 authoring 主路径，不能靠业务级 `page.ts` glue 证明支持。
+3. 如果 compiler 不能把能力自然编进 `.component.tsx -> generated -> runtime` 主链，就不能写成“已支持”。
 
 ## 下一步
 
-主线已经不再是“补齐 Phase 1”。
+主线仍然是 `Phase 2`，但重点已经改变：
 
-现在的主线应该切到 `Phase 2`，但要遵守一个前提：
-
-- 不轻易打穿已经形成的 kernel / authoring / host / tooling 基线
+- 不再先补包和文档
+- 先修 compiler 主路径
+- 再补非调试、端到端、零胶水 example
 
 更具体地说，接下来应该优先推进：
 
-- `@jue/primitives`
-- `@jue/authoring-check`
-- `@jue/stream`
-- `@jue/router`
-- `@jue/query`
-
-而不是回头重新改写 Phase 1 的基础契约。
+- 让 `Show` 真正自动响应 signal 更新
+- 让 `stream / router / query` 能以 `jue` 世界能力进入 authoring 主路径
+- 把 `router-query-lab`、`stream-lab` 这类例子从 glue-heavy 状态收敛到真正可验收

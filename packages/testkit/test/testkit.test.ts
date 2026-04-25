@@ -35,6 +35,6 @@ describe("@jue/testkit", () => {
       return;
     }
 
-    expect(fixtures.value).toHaveLength(5);
+    expect(fixtures.value).toHaveLength(7);
   });
 });

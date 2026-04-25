@@ -5,6 +5,70 @@
     
 
     
+    export function createRuntime(): {
+      configureSignalRuntime: {
+        (runtime: {
+          read(name: string): any;
+          write(name: string, value: any): void;
+          update(name: string, updater: (value: any) => any): void;
+        }): void;
+      };
+      handlers: Record<string, unknown>;
+    } {
+      let __jueSignalRuntime = {
+        read(name: string): any {
+          throw new Error(`Signal runtime is not configured for ${name}.`);
+        },
+        write(name: string, _value: any): void {
+          throw new Error(`Signal runtime is not configured for ${name}.`);
+        },
+        update(name: string, _updater: (value: any) => any): void {
+          throw new Error(`Signal runtime is not configured for ${name}.`);
+        }
+      };
+
+      function configureSignalRuntime(runtime: {
+        read(name: string): any;
+        write(name: string, value: any): void;
+        update(name: string, updater: (value: any) => any): void;
+      }): void {
+        __jueSignalRuntime = runtime;
+      }
+
+      function __jueCreateSignalRef(name: string) {
+        return {
+          get(): any {
+            return __jueSignalRuntime.read(name);
+          },
+          set(value: any): void {
+            __jueSignalRuntime.write(name, value);
+          },
+          update(updater: (value: any) => any): void {
+            __jueSignalRuntime.update(name, updater);
+          }
+        };
+      }
+
+      const pageClass = __jueCreateSignalRef("pageClass");
+const shellClass = __jueCreateSignalRef("shellClass");
+const title = __jueCreateSignalRef("title");
+const summary = __jueCreateSignalRef("summary");
+const items = __jueCreateSignalRef("items");
+
+      interface KeyedListItem {
+  readonly id: string;
+  readonly label: string;
+  readonly status: string;
+}
+
+      return {
+        configureSignalRuntime,
+        handlers: {  }
+      };
+    }
+  
+
+    
     const keyedListTemplate0Result = createBlueprint({
       nodeCount: 5,
       nodeKind: new Uint8Array([1,1,2,1,2]),
@@ -73,6 +137,7 @@
   
     export { blueprint };
     export const signalCount = 8;
+    export const signalSlots = {"pageClass":0,"shellClass":1,"title":2,"summary":3,"items":4};
     export const initialSignalValues = ["keyed-lab-page","keyed-lab-shell","Keyed List Lab","A keyed-list authoring canary that proves compiler lowering, generated descriptors, and runtime reconcile all agree on key stability.",[{"id":"alpha","label":"Alpha","status":"Primary"},{"id":"bravo","label":"Bravo","status":"Warm"},{"id":"charlie","label":"Charlie","status":"Cold"}],"keyed-lab-title","keyed-lab-summary","keyed-lab-list-shell"];
     export const keyedListDescriptors = [{
       regionSlot: 0,
@@ -86,5 +151,4 @@
       }
     }];
     export const virtualListDescriptors = [];
-    export const handlers = {  };
   

@@ -1,0 +1,275 @@
+:root {
+  color-scheme: light;
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(255, 185, 128, 0.2), transparent 38%),
+    radial-gradient(circle at bottom right, rgba(117, 190, 255, 0.18), transparent 40%),
+    linear-gradient(180deg, #f7f4ef 0%, #ebe6dd 100%);
+  color: #1f1d1a;
+}
+
+#app {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  box-sizing: border-box;
+}
+
+.router-query-page {
+  width: min(960px, 100%);
+}
+
+.router-query-shell {
+  padding: clamp(24px, 4vw, 40px);
+  border: 1px solid rgba(31, 29, 26, 0.1);
+  background: rgba(255, 252, 247, 0.88);
+  box-shadow: 0 26px 64px rgba(39, 28, 13, 0.12);
+  backdrop-filter: blur(12px);
+}
+
+.router-query-eyebrow,
+.router-query-title,
+.router-query-summary,
+.router-query-inline-label,
+.router-query-inline-value,
+.router-query-section-label,
+.router-query-card-label,
+.router-query-card-value,
+.router-query-insight-value,
+.router-query-banner-title,
+.router-query-banner-body {
+  display: block;
+}
+
+.router-query-eyebrow {
+  font-size: 0.82rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(31, 29, 26, 0.56);
+}
+
+.router-query-title {
+  margin-top: 10px;
+  font-size: clamp(2.5rem, 7vw, 4.4rem);
+  line-height: 0.92;
+}
+
+.router-query-summary {
+  margin-top: 16px;
+  max-width: 680px;
+  color: rgba(31, 29, 26, 0.76);
+  line-height: 1.68;
+}
+
+.router-query-row {
+  margin-top: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+}
+
+.router-query-row--stack {
+  align-items: flex-start;
+}
+
+.router-query-inline-label,
+.router-query-card-label,
+.router-query-section-label {
+  font-size: 0.76rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(31, 29, 26, 0.54);
+}
+
+.router-query-inline-value {
+  font-size: 0.98rem;
+  color: rgba(31, 29, 26, 0.82);
+}
+
+.router-query-badge {
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.router-query-badge--pending {
+  background: rgba(255, 210, 142, 0.3);
+  color: #8a4e00;
+}
+
+.router-query-badge--ready {
+  background: rgba(101, 182, 126, 0.18);
+  color: #205b34;
+}
+
+.router-query-badge--cached {
+  background: rgba(77, 143, 255, 0.16);
+  color: #184e9c;
+}
+
+.router-query-badge--stale {
+  background: rgba(102, 94, 190, 0.14);
+  color: #413795;
+}
+
+.router-query-badge--error {
+  background: rgba(226, 95, 80, 0.16);
+  color: #8b2218;
+}
+
+.router-query-section,
+.router-query-action-row,
+.router-query-grid,
+.router-query-insight-card,
+.router-query-banner {
+  margin-top: 22px;
+}
+
+.router-query-chip-row,
+.router-query-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.router-query-chip,
+.router-query-action {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+
+.router-query-chip {
+  padding: 12px 16px;
+  background: rgba(31, 29, 26, 0.06);
+  color: rgba(31, 29, 26, 0.82);
+}
+
+.router-query-chip--active {
+  background: #1f1d1a;
+  color: #f6f2ea;
+  box-shadow: 0 14px 26px rgba(31, 29, 26, 0.16);
+}
+
+.router-query-chip--tab {
+  background: rgba(52, 99, 174, 0.08);
+}
+
+.router-query-chip--tab-active {
+  background: #1d4f9d;
+  color: #f5fbff;
+  box-shadow: 0 14px 26px rgba(29, 79, 157, 0.18);
+}
+
+.router-query-action {
+  padding: 12px 18px;
+}
+
+.router-query-action--ghost {
+  background: transparent;
+  color: rgba(31, 29, 26, 0.76);
+  border: 1px solid rgba(31, 29, 26, 0.14);
+}
+
+.router-query-action--primary {
+  background: linear-gradient(135deg, #1d4f9d 0%, #0f7f7a 100%);
+  color: #f7fdfd;
+  box-shadow: 0 14px 28px rgba(15, 88, 131, 0.18);
+}
+
+.router-query-action--secondary {
+  background: rgba(133, 96, 42, 0.12);
+  color: #7f4b0f;
+}
+
+.router-query-chip:hover,
+.router-query-action:hover {
+  transform: translateY(-1px);
+}
+
+.router-query-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.router-query-card,
+.router-query-insight-card,
+.router-query-banner {
+  padding: 18px;
+  border: 1px solid rgba(31, 29, 26, 0.08);
+  background: rgba(255, 249, 239, 0.82);
+}
+
+.router-query-card-value {
+  margin-top: 10px;
+  font-size: 1.14rem;
+}
+
+.router-query-insight-value {
+  margin-top: 12px;
+  line-height: 1.7;
+  color: rgba(31, 29, 26, 0.82);
+}
+
+.router-query-banner {
+  position: relative;
+  overflow: hidden;
+}
+
+.router-query-banner::after {
+  content: "";
+  position: absolute;
+  inset: auto -40px -50px auto;
+  width: 140px;
+  height: 140px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.router-query-banner--risk {
+  background: linear-gradient(135deg, rgba(143, 34, 24, 0.92), rgba(214, 97, 57, 0.86));
+  color: #fff9f4;
+}
+
+.router-query-banner--safe {
+  background: linear-gradient(135deg, rgba(20, 83, 73, 0.92), rgba(46, 137, 119, 0.84));
+  color: #f4fffb;
+}
+
+.router-query-banner-title {
+  position: relative;
+  z-index: 1;
+  font-size: 1.2rem;
+}
+
+.router-query-banner-body {
+  position: relative;
+  z-index: 1;
+  margin-top: 10px;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+@media (max-width: 720px) {
+  #app {
+    padding: 18px;
+  }
+
+  .router-query-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .router-query-shell {
+    padding: 22px;
+  }
+}

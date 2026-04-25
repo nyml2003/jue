@@ -24,6 +24,17 @@
     "../../packages/compiler/src/**/*.ts",
     "../../packages/jsx/src/**/*.ts",
     "../../packages/jsx/src/**/*.d.ts",
-    "../../packages/web/src/**/*.ts"
+    "../../packages/web/src/**/*.ts",
+    "../../packages/primitives/src/**/*.ts",
+    "../../packages/authoring-check/src/**/*.ts",
+    "../../packages/stream/src/**/*.ts",
+    "../../packages/router/src/**/*.ts",
+    "../../packages/query/src/**/*.ts",
+    "../../packages/devtrace/src/**/*.ts",
+    "../../packages/docsgen/src/**/*.ts",
+    "../../packages/examples/src/**/*.ts",
+    "../../packages/inspect/src/**/*.ts",
+    "../../packages/testkit/src/**/*.ts",
+    "../../packages/bench/src/**/*.ts"
   ]
 }

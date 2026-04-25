@@ -13,6 +13,8 @@ describe("@jue/examples", () => {
       "incident-brief",
       "keyed-list-lab",
       "release-checklist",
+      "router-query-lab",
+      "stream-lab",
       "virtual-list-lab"
     ]);
     expect(examples[0]?.componentPath).toContain("page.component.tsx");

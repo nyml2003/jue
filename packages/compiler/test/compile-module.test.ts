@@ -6,12 +6,13 @@ import { compileModule } from "../src/frontend/index";
 describe("@jue/compiler compileModule", () => {
   it("compiles a TSX module into runtime code, blueprint payload, and handler exports", () => {
     const result = compileModule(`
-      import { View, Text, Button, createSignal } from "@jue/jsx";
+      import { View, Text, Button, signal } from "@jue/jsx";
 
       let pressed = 0;
 
       function handlePress() {
         pressed += 1;
+        title.set("pressed");
       }
 
       function readPressed() {
@@ -19,10 +20,10 @@ describe("@jue/compiler compileModule", () => {
       }
 
       export function render() {
-        const title = createSignal("hello");
+        const title = signal("hello");
         return (
           <View>
-            <Text>{title}</Text>
+            <Text>{title.get()}</Text>
             <Button onPress={handlePress}>go</Button>
           </View>
         );
@@ -37,11 +38,16 @@ describe("@jue/compiler compileModule", () => {
     expect(result.value.handlerNames).toEqual(["handlePress", "readPressed"]);
     expect(result.value.runtimeCode).toContain("let pressed = 0;");
     expect(result.value.runtimeCode).toContain("function handlePress()");
-    expect(result.value.code).toContain("export const handlers");
+    expect(result.value.code).toContain("export function createRuntime()");
+    expect(result.value.code).toContain("export const signalSlots");
+    expect(result.value.code).toContain("configureSignalRuntime");
+    expect(result.value.code).toContain("const title = __jueCreateSignalRef(\"title\");");
+    expect(result.value.code).toContain("handlers: { \"handlePress\": handlePress, \"readPressed\": readPressed }");
     expect(result.value.code).toContain("\"handlePress\": handlePress");
     expect(result.value.code).toContain("createBlueprint");
     expect(result.value.blueprint.bindingOpcode).toContain(0);
     expect(result.value.blueprint.bindingOpcode).toContain(5);
+    expect(result.value.signalSlots).toEqual({ title: 0 });
   });
 
   it("omits runtime code when the module only exports render", () => {
@@ -60,6 +66,7 @@ describe("@jue/compiler compileModule", () => {
 
     expect(result.value.runtimeCode).toBe("");
     expect(result.value.handlerNames).toEqual([]);
+    expect(result.value.code).toContain("export function createRuntime()");
   });
 
   it("emits keyed list and virtual list descriptors for authored structure primitives", () => {
@@ -115,6 +122,54 @@ describe("@jue/compiler compileModule", () => {
     expect(result.value.virtualListDescriptors[0]?.template.signalPaths).toEqual([null, ["label"]]);
     expect(result.value.code).toContain("export const keyedListDescriptors");
     expect(result.value.code).toContain("export const virtualListDescriptors");
+    expect(result.value.signalSlots).toEqual({
+      items: 0,
+      rows: 1
+    });
+  });
+
+  it("keeps non-jsx runtime imports and top-level signal declarations available to generated handlers", () => {
+    const result = compileModule(`
+      import { createRouter } from "@jue/router";
+      import { signal, Text, View, Button } from "@jue/jsx";
+
+      const count = signal(0);
+      const router = createRouter({
+        history: {
+          current() { return "/"; },
+          navigate() {},
+          replace() {},
+          back() {},
+          subscribe() { return { unsubscribe() {} }; }
+        }
+      });
+
+      function handlePress() {
+        count.update(value => value + 1);
+        router.navigate("/next");
+      }
+
+      export function render() {
+        return (
+          <View>
+            <Text>{count.get()}</Text>
+            <Button onPress={handlePress}>go</Button>
+          </View>
+        );
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.value.code).toContain("import { createRouter } from \"@jue/router\";");
+    expect(result.value.code).toContain("const count = __jueCreateSignalRef(\"count\");");
+    expect(result.value.runtimeCode).not.toContain("const count = signal(0);");
+    expect(result.value.runtimeCode).toContain("const router = createRouter");
+    expect(result.value.code).not.toContain("export const handlers");
+    expect(result.value.signalSlots).toEqual({ count: 0 });
   });
 });
 

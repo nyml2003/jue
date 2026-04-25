@@ -11,20 +11,22 @@
 
 ## 当前状态
 
-`Phase 1` 基线已经闭环。
+`Phase 2` 正在重做验收。
 
 当前更准确的状态是：
 
 - `BlockIR -> lowering -> Blueprint -> runtime` 主链已经稳定
 - `@jue/compiler/frontend`、`@jue/compiler/ir`、`@jue/compiler/lowering`、`@jue/compiler/builder` 已形成明确边界
-- `@jue/runtime-core/reactivity`、`@jue/runtime-core/host-contract` 已形成明确边界
+- `@jue/runtime-core/reactivity`、`@jue/runtime-core/host-contract`、`@jue/runtime-core/channel` 已形成明确边界
 - `examples/web-playground/apps/*` 已是从 `.component.tsx -> generated/page.generated.ts -> mount` 的真实回归面
 - `@jue/examples`、`@jue/inspect`、`@jue/testkit`、`@jue/bench` 已形成第一版 tooling 闭环
+- `@jue/primitives`、`@jue/authoring-check`、`@jue/stream`、`@jue/router`、`@jue/query`、`@jue/devtrace`、`@jue/docsgen` 已落成第一版包面
+- 但这些能力还没有全部通过新的“非调试、端到端、完备用例”验收线
 
-当前主线已经从“完成 Phase 1”切到：
+当前主线不是“进入 Phase 3”，而是：
 
-- 保持 kernel / authoring / host / tooling 基线稳定
-- 在不破坏基线的前提下进入 `Phase 2`
+- 先按新的支持标准重做 `Phase 2` 验收
+- 先修 compiler 主路径，再决定哪些能力真的能被标成支持
 
 建议阅读顺序：
 
@@ -85,12 +87,10 @@
 
 ## 直接下一步
 
-下一步不再是补齐 `Phase 1`，而是进入 `Phase 2`：
+下一步不是直接进入 `Phase 3`，而是继续完成 `Phase 2`：
 
-- `@jue/primitives`
-- `@jue/authoring-check`
-- `@jue/stream`
-- `@jue/router`
-- `@jue/query`
+- 把 `Show` 变成真正零胶水的 authoring 能力
+- 把 `stream / router / query` 变成真正可跨端的 TSX 主路径能力
+- 给这些能力补非调试、端到端、完备用例
 
-前提是不要回头打穿已经稳定的 kernel / host / tooling contract。
+前提是不要回头打穿已经稳定的 kernel / host / tooling / stdlib contract。

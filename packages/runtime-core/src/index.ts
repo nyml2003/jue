@@ -65,6 +65,16 @@ export {
   type CreateBlockInstanceOptions
 } from "./block-instance";
 export {
+  createChannel,
+  drainChannel,
+  publishChannel,
+  subscribeChannel,
+  type Channel,
+  type ChannelError,
+  type ChannelMessage,
+  type ChannelSubscription
+} from "./channel";
+export {
   beginSchedulerFlush,
   completeSchedulerFlush,
   createSchedulerState,

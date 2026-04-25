@@ -27,6 +27,17 @@ async function main() {
           "@jue/runtime-core": resolve(REPO_ROOT, "packages/runtime-core/src/index.ts"),
           "@jue/compiler": resolve(REPO_ROOT, "packages/compiler/src/index.ts"),
           "@jue/jsx": resolve(REPO_ROOT, "packages/jsx/src/index.ts"),
+          "@jue/primitives": resolve(REPO_ROOT, "packages/primitives/src/index.ts"),
+          "@jue/authoring-check": resolve(REPO_ROOT, "packages/authoring-check/src/index.ts"),
+          "@jue/stream": resolve(REPO_ROOT, "packages/stream/src/index.ts"),
+          "@jue/router": resolve(REPO_ROOT, "packages/router/src/index.ts"),
+          "@jue/query": resolve(REPO_ROOT, "packages/query/src/index.ts"),
+          "@jue/devtrace": resolve(REPO_ROOT, "packages/devtrace/src/index.ts"),
+          "@jue/docsgen": resolve(REPO_ROOT, "packages/docsgen/src/index.ts"),
+          "@jue/examples": resolve(REPO_ROOT, "packages/examples/src/index.ts"),
+          "@jue/inspect": resolve(REPO_ROOT, "packages/inspect/src/index.ts"),
+          "@jue/testkit": resolve(REPO_ROOT, "packages/testkit/src/index.ts"),
+          "@jue/bench": resolve(REPO_ROOT, "packages/bench/src/index.ts"),
           "@jue/web": resolve(REPO_ROOT, "packages/web/src/index.ts")
         }
       },

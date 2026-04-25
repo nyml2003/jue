@@ -47,6 +47,7 @@
 
 - [开发世界边界](./04-layer/layer-model.md)
 - [包规划图](./04-layer/package-map.md)
+- [Phase 2 包矩阵](./04-layer/phase-2-package-matrix.md)
 - [`@jue/stream` 边界](./04-layer/stdlib-stream.md)
 - [`@jue/router` 边界](./04-layer/stdlib-router.md)
 - [`@jue/query` 边界](./04-layer/stdlib-query.md)

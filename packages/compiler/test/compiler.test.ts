@@ -1039,6 +1039,31 @@ describe("@jue/compiler", () => {
     expect(Array.from(result.value.regionBranchRangeCount)).toEqual([2]);
   });
 
+  it("compiles a Show primitive into a conditional region", () => {
+    const result = compile(`
+      import { Show, Text, View, createSignal } from "@jue/jsx";
+
+      export function render() {
+        const visible = createSignal(true);
+        return (
+          <View>
+            <Show when={visible} fallback={<Text>off</Text>}>
+              <Text>on</Text>
+            </Show>
+          </View>
+        );
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(Array.from(result.value.regionType)).toEqual([0]);
+    expect(Array.from(result.value.regionBranchRangeCount)).toEqual([2]);
+  });
+
   it("compiles a List JSX primitive into a keyed list region", () => {
     const result = compile(`
       import { List, Text, View, createSignal } from "@jue/jsx";
@@ -1116,6 +1141,32 @@ describe("@jue/compiler", () => {
       error: {
         code: "UNSUPPORTED_ROOT_SHAPE",
         message: "compile() currently requires JSX tag <List> to appear inside a host element."
+      }
+    });
+  });
+
+  it("rejects Portal primitives until portal support exists", () => {
+    const result = compile(`
+      import { Portal, Text, View, createSignal } from "@jue/jsx";
+
+      export function render() {
+        const target = createSignal("overlay");
+        return (
+          <View>
+            <Portal target={target}>
+              <Text>overlay</Text>
+            </Portal>
+          </View>
+        );
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_COMPONENT_CALL",
+        message: "compile() does not support <Portal> yet."
       }
     });
   });

@@ -61,6 +61,15 @@ importers:
         specifier: ^5.46.1
         version: 5.46.1
 
+  packages/authoring-check:
+    dependencies:
+      '@jue/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+      '@jue/primitives':
+        specifier: workspace:*
+        version: link:../primitives
+
   packages/bench:
     dependencies:
       '@jue/examples':
@@ -101,6 +110,27 @@ importers:
         specifier: ^7.28.0
         version: 7.28.0
 
+  packages/devtrace:
+    dependencies:
+      '@jue/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/docsgen:
+    dependencies:
+      '@jue/authoring-check':
+        specifier: workspace:*
+        version: link:../authoring-check
+      '@jue/examples':
+        specifier: workspace:*
+        version: link:../examples
+      '@jue/primitives':
+        specifier: workspace:*
+        version: link:../primitives
+      '@jue/testkit':
+        specifier: workspace:*
+        version: link:../testkit
+
   packages/examples: {}
 
   packages/inspect:
@@ -117,6 +147,9 @@ importers:
 
   packages/jsx:
     dependencies:
+      '@jue/primitives':
+        specifier: workspace:*
+        version: link:../primitives
       '@jue/shared':
         specifier: workspace:*
         version: link:../shared
@@ -130,6 +163,29 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
+  packages/primitives: {}
+
+  packages/query:
+    dependencies:
+      '@jue/devtrace':
+        specifier: workspace:*
+        version: link:../devtrace
+      '@jue/runtime-core':
+        specifier: workspace:*
+        version: link:../runtime-core
+      '@jue/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/router:
+    dependencies:
+      '@jue/devtrace':
+        specifier: workspace:*
+        version: link:../devtrace
+      '@jue/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/runtime-core:
     dependencies:
       '@jue/shared':
@@ -137,6 +193,15 @@ importers:
         version: link:../shared
 
   packages/shared: {}
+
+  packages/stream:
+    dependencies:
+      '@jue/runtime-core':
+        specifier: workspace:*
+        version: link:../runtime-core
+      '@jue/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/testkit:
     dependencies:

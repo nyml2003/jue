@@ -1,17 +1,12 @@
 import { err, ok, type Result } from "@jue/shared";
-import { mountTree } from "@jue/web";
+import { mountCompiledModule } from "@jue/web";
 
 import {
   blueprint,
-  handlers as compiledHandlers,
+  createRuntime,
   initialSignalValues,
   signalCount
 } from "./generated/page.generated";
-
-const handlers = compiledHandlers as {
-  readonly getOpenInvoicesCount: () => number;
-  readonly getScheduleReviewCount: () => number;
-};
 
 export interface MountedAccountOverview {
   getOpenInvoicesCount(): number;
@@ -25,19 +20,20 @@ export interface AccountOverviewError {
 }
 
 export function mountAccountOverview(root: Node): Result<MountedAccountOverview, AccountOverviewError> {
-  const mountedResult = mountTree({
-    blueprint,
+  const runtime = createRuntime();
+  const handlers = runtime.handlers as {
+    readonly getOpenInvoicesCount: () => number;
+    readonly getScheduleReviewCount: () => number;
+  };
+  const mountedResult = mountCompiledModule({
     root,
+    blueprint,
     signalCount,
-    initialSignalValues
+    initialSignalValues,
+    handlers
   });
   if (!mountedResult.ok) {
     return err(mountedResult.error);
-  }
-
-  const flushResult = mountedResult.value.flushInitialBindings();
-  if (!flushResult.ok) {
-    return err(flushResult.error);
   }
 
   return ok({
@@ -48,8 +44,7 @@ export function mountAccountOverview(root: Node): Result<MountedAccountOverview,
       return handlers.getScheduleReviewCount();
     },
     dispose() {
-      return mountedResult.value.dispose();
+      return mountedResult.value.mountedTree.dispose();
     }
   });
 }
-
