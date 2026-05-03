@@ -77,6 +77,9 @@
       "@jue/native": [
         "./packages/native/src/index.ts"
       ],
+      "@jue/skyline": [
+        "./packages/skyline/src/index.ts"
+      ],
       "@jue/examples": [
         "./packages/examples/src/index.ts"
       ],

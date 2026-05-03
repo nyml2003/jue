@@ -49,16 +49,21 @@
 | `@jue/devtrace` | 已有 | Official Tooling Layer | signal/channel/resource/lane/dirty/flush/region trace collector |
 | `@jue/docsgen` | 已有 | Official Tooling Layer | 从 specs / examples / fixtures 生成文档片段与矩阵 |
 | `@jue/native` | 占位 | Official Host Layer | 先占边界，当前不是主线 |
+| `@jue/skyline` | 已存在（最小 compile-time target） | Official Host Target Layer | 面向 `Skyline + glass-easel` 的小程序 target，当前首先是 Node 侧 compile-time backend，生成模板 / data artifact |
 
 ## 开发世界的包层次
 
 下面的包层次是建议的一方完整版图。
 
-其中：
+这里仍保留 `Phase 1 / Phase 2 / Phase 3` 作为**历史时机标签**。
 
-- `Phase 1` = 当前主线必须做
-- `Phase 2` = kernel 站稳后应该补
-- `Phase 3` = 世界补齐时再做
+它们现在只表示：
+
+- 哪些属于早期基线
+- 哪些属于当前主线路径
+- 哪些属于后续扩面
+
+当前真实执行顺序，以 [实现方案](../01-overview/implementation-plan.md) 为准。
 
 ## 一、Kernel 包
 
@@ -189,6 +194,8 @@
   - `Portal`
   - `Boundary`
 - 备注：
+  - 当前优先验收目标仍是 `Show / List / VirtualList`
+  - `Portal / Boundary` 目前只是保留原语边界，还不能按当前支持口径写成“已支持”
   - 先保证这些原语在 frontend/IR/runtime 三端语义一致，再谈更复杂 authoring
 
 ### `@jue/authoring-check`
@@ -224,6 +231,23 @@
   - Native host 映射
 - 备注：
   - 当前文档已明确原生渲染目标不在早期主线
+
+### `@jue/skyline`
+
+- 层级：Official Host Target Layer
+- 当前状态：已存在（最小可用）
+- 阶段：Phase 3
+- 职责：
+  - 微信小程序 `Skyline + glass-easel` target
+  - `WXML / WXSS / page-or-component JS/JSON` 生成
+  - signal -> binding -> `setData path` lowering
+  - 小程序事件与 methods bridge
+- 备注：
+  - 这不是当前 `HostAdapter` 的简单变体
+  - 默认走模板宿主路线，不直接复用 DOM-style mount tree
+  - 它和 `@jue/native` 共享 authoring / IR / dependency graph，但不是同一种后端
+  - 当前首先是 compile-time 包，不是小程序运行时包
+  - 当前已落地最小 artifact lowering 和 `examples/mobile/jue-mobile-showcase` 示例
 
 ### `@jue/web-html`
 
@@ -410,9 +434,9 @@
 
 这些属于 ecosystem，不该反向定义 kernel 或 official layers。
 
-## 建设顺序
+## 实现时机参考
 
-### Phase 1：一方世界成形
+### 历史标签：Phase 1
 
 目标：
 
@@ -434,7 +458,7 @@
 12. `@jue/bench`
 13. `@jue/examples`
 
-### Phase 2：官方能力层补齐
+### 历史标签：Phase 2
 
 目标：
 
@@ -450,7 +474,7 @@
 6. `@jue/devtrace`
 7. `@jue/docsgen`
 
-### Phase 3：世界扩面
+### 历史标签：Phase 3
 
 目标：
 
@@ -464,18 +488,19 @@
 4. `@jue/viewport`
 5. `@jue/language-tools`
 6. `@jue/create`
-7. `@jue/native`
-8. `@jue/web-html`
+7. `@jue/skyline`
+8. `@jue/native`
+9. `@jue/web-html`
 
 ## 当前建议
 
-`Phase 1` 已完成，但 `Phase 2` 还不能宣布完成。
+早期基线已经成立，但当前主线还不能宣布收口。
 
 现在更合理的目标不是继续补包面，而是：
 
 1. 保持 `shared / runtime-core / compiler / jsx / web` 的边界稳定
 2. 把 `primitives / authoring-check / stream / router / query / devtrace / docsgen` 从“包存在”推进到“能力真实支持”
-3. 只有在新验收线下通过之后，才进入 `Phase 3`
+3. 只有在新验收线下通过之后，才进入后续扩面
 
 ## 结论
 

@@ -5,11 +5,11 @@ import { checkAuthoringSource, collectReferencedPrimitives, createAuthoringSuppo
 describe("@jue/authoring-check", () => {
   it("detects referenced structure primitives and support status", () => {
     const source = `
-      import { Show, Text, View } from "@jue/jsx";
+      import { Show, Text, View, signal } from "@jue/jsx";
 
       export function render() {
-        const visible = createSignal(true);
-        return <View><Show when={visible}><Text>ready</Text></Show></View>;
+        const visible = signal(true);
+        return <View><Show when={visible.get()}><Text>ready</Text></Show></View>;
       }
     `;
 
@@ -19,15 +19,43 @@ describe("@jue/authoring-check", () => {
 
   it("reports unsupported authoring primitives through compile diagnostics", () => {
     const result = checkAuthoringSource(`
-      import { Portal, Text, View, createSignal } from "@jue/jsx";
+      import { Portal, Text, View, signal } from "@jue/jsx";
 
       export function render() {
-        const visible = createSignal(true);
-        return <View><Portal target={visible}><Text>bad</Text></Portal></View>;
+        const visible = signal(true);
+        return <View><Portal target={visible.get()}><Text>bad</Text></Portal></View>;
       }
     `);
 
     expect(result.ok).toBe(false);
     expect(result.diagnostics.some(diagnostic => diagnostic.code === "PRIMITIVE_NOT_IMPLEMENTED")).toBe(true);
+  });
+
+  it("accepts a custom root symbol when checking authoring source", () => {
+    const result = checkAuthoringSource(`
+      import { Show, Text, View, signal } from "@jue/jsx";
+
+      export function App() {
+        const visible = signal(true);
+        return <View><Show when={visible.get()}><Text>ready</Text></Show></View>;
+      }
+    `, { rootSymbol: "App" });
+
+    expect(result.ok).toBe(true);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("accepts an exported const arrow root symbol", () => {
+    const result = checkAuthoringSource(`
+      import { Show, Text, View, signal } from "@jue/jsx";
+
+      export const App = () => {
+        const visible = signal(true);
+        return <View><Show when={visible.get()}><Text>ready</Text></Show></View>;
+      };
+    `, { rootSymbol: "App" });
+
+    expect(result.ok).toBe(true);
+    expect(result.diagnostics).toEqual([]);
   });
 });

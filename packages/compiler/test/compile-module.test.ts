@@ -69,16 +69,71 @@ describe("@jue/compiler compileModule", () => {
     expect(result.value.code).toContain("export function createRuntime()");
   });
 
+  it("compiles a named root component when rootSymbol is provided", () => {
+    const result = compileModule(`
+      import { View, Text, signal } from "@jue/jsx";
+
+      export function App() {
+        const title = signal("hello");
+        return <View><Text>{title.get()}</Text></View>;
+      }
+    `, { rootSymbol: "App" });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.value.signalSlots).toEqual({ title: 0 });
+  });
+
+  it("compiles an exported const arrow root when rootSymbol is provided", () => {
+    const result = compileModule(`
+      import { View, Text, signal } from "@jue/jsx";
+
+      export const App = () => {
+        const title = signal("hello");
+        return <View><Text>{title.get()}</Text></View>;
+      };
+    `, { rootSymbol: "App" });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.value.signalSlots).toEqual({ title: 0 });
+  });
+
+  it("rejects using the selected root symbol as an event handler", () => {
+    const result = compileModule(`
+      import { Button, View } from "@jue/jsx";
+
+      export function App() {
+        return <View><Button onPress={App}>go</Button></View>;
+      }
+    `, { rootSymbol: "App" });
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_EVENT_HANDLER",
+        message: "compile() could not resolve event handler App."
+      }
+    });
+  });
+
   it("emits keyed list and virtual list descriptors for authored structure primitives", () => {
     const result = compileModule(`
-      import { List, Text, View, VirtualList, createSignal } from "@jue/jsx";
+      import { List, Text, View, VirtualList, signal } from "@jue/jsx";
 
       export function render() {
-        const items = createSignal([
+        const items = signal([
           { id: "a", label: "Alpha" },
           { id: "b", label: "Bravo" }
         ]);
-        const rows = createSignal([
+        const rows = signal([
           { id: "0", label: "Row 00" },
           { id: "1", label: "Row 01" },
           { id: "2", label: "Row 02" }
@@ -86,10 +141,10 @@ describe("@jue/compiler compileModule", () => {
 
         return (
           <View>
-            <List each={items} by={item => item.id}>
+            <List each={items.get()} by={item => item.id}>
               {item => <Text className="item-label">{item.label}</Text>}
             </List>
-            <VirtualList each={rows} by={row => row.id} estimateSize={() => 44} overscan={1}>
+            <VirtualList each={rows.get()} by={row => row.id} estimateSize={() => 44} overscan={1}>
               {row => <Text className="row-label">{row.label}</Text>}
             </VirtualList>
           </View>
@@ -169,6 +224,58 @@ describe("@jue/compiler compileModule", () => {
     expect(result.value.runtimeCode).not.toContain("const count = signal(0);");
     expect(result.value.runtimeCode).toContain("const router = createRouter");
     expect(result.value.code).not.toContain("export const handlers");
+    expect(result.value.signalSlots).toEqual({ count: 0 });
+  });
+
+  it("keeps non-signal declarators from mixed declarations in runtime code", () => {
+    const result = compileModule(`
+      import { createRouter } from "@jue/router";
+      import { signal, Text, View } from "@jue/jsx";
+
+      const count = signal(0), router = createRouter({
+        history: {
+          current() { return "/"; },
+          navigate() {},
+          replace() {},
+          back() {},
+          subscribe() { return { unsubscribe() {} }; }
+        }
+      });
+
+      export function render() {
+        return <View><Text>{count.get()}</Text></View>;
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.value.code).toContain("const count = __jueCreateSignalRef(\"count\");");
+    expect(result.value.runtimeCode).not.toContain("const count = signal(0)");
+    expect(result.value.runtimeCode).toContain("const router = createRouter");
+    expect(result.value.signalSlots).toEqual({ count: 0 });
+  });
+
+  it("strips aliased top-level signal declarations from runtime code", () => {
+    const result = compileModule(`
+      import { signal as s, Text, View } from "@jue/jsx";
+
+      const count = s(0);
+
+      export function render() {
+        return <View><Text>{count.get()}</Text></View>;
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.value.code).toContain("const count = __jueCreateSignalRef(\"count\");");
+    expect(result.value.runtimeCode).not.toContain("const count = s(0);");
     expect(result.value.signalSlots).toEqual({ count: 0 });
   });
 });

@@ -1,15 +1,21 @@
-# Phase 2 Package Matrix
+# Support Matrix
 
 Examples tracked: 5
 Compiled fixtures: 5
 
-| Primitive | Implemented | Notes |
-| --- | --- | --- |
-| Show | yes | Compiles to conditional regions. |
-| List | yes | Compiles to keyed-list regions. |
-| VirtualList | yes | Compiles to virtual-list regions. |
-| Portal | no | Reserved primitive; host/runtime support is not active yet. |
-| Boundary | no | Reserved primitive; boundary runtime is not active yet. |
+状态口径：
+
+- `Compiler support point`：当前 frontend/IR/lowering 主链上已经存在最小支持点
+- `Runtime/host path`：runtime + web host 上已经存在最小执行路径
+- `Support accepted`：只有通过“非调试、端到端、零业务 glue、走 authoring 主路径”的新验收线，才记为 `yes`
+
+| Primitive | Compiler support point | Runtime/host path | Support accepted | Notes |
+| --- | --- | --- | --- | --- |
+| Show | yes | yes | no | 已有真实 conditional-region lowering 和 runtime 路径，但还没有通过新的 authoring 主路径验收线。 |
+| List | yes | yes | no | 已有 keyed-list lowering 和最小 reconcile 路径，但在端到端 authoring 主路径过关前还不能记为支持。 |
+| VirtualList | yes | yes | no | 已有 virtual-list lowering 和最小 window controller 路径，但仍卡在非调试、零 glue 的支持验收线上。 |
+| Portal | no | no | no | 仍是保留原语，host/runtime 支持尚未激活。 |
+| Boundary | no | no | no | 仍是保留原语，boundary runtime 尚未激活。 |
 
 ## Example Registry
 

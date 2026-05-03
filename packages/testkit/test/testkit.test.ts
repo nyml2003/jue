@@ -11,7 +11,7 @@ describe("@jue/testkit", () => {
       return;
     }
 
-    expect(source.value.source).toContain("createSignal");
+    expect(source.value.source).toContain("signal");
   });
 
   it("compiles individual example fixtures and summarizes their descriptors", async () => {

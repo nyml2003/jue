@@ -694,7 +694,9 @@ bindingArgRef: unknown[]
 源码：
 
 ```tsx
-<div class={active ? "on" : "off"}>{count}</div>
+<View class={active.get() ? "on" : "off"}>
+  <Text>{count.get()}</Text>
+</View>
 ```
 
 目标结构：

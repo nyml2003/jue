@@ -929,15 +929,15 @@ describe("@jue/compiler", () => {
 
   it("compiles identifier-based text and prop bindings through the Babel frontend", () => {
     const result = compile(`
-      import { View, Text, Button, createSignal } from "@jue/jsx";
+      import { View, Text, Button, signal } from "@jue/jsx";
 
       function handleClick() {}
       function render() {
-        const panelClass = createSignal("panel");
-        const label = createSignal("hello");
+        const panelClass = signal("panel");
+        const label = signal("hello");
         return (
-          <View className={panelClass}>
-            <Text>{label}</Text>
+          <View className={panelClass.get()}>
+            <Text>{label.get()}</Text>
             <Button onClick={handleClick}>press</Button>
           </View>
         );
@@ -1000,11 +1000,11 @@ describe("@jue/compiler", () => {
 
   it("compiles style object expressions with mixed signal and literal values", () => {
     const result = compile(`
-      import { View, createSignal } from "@jue/jsx";
+      import { View, signal } from "@jue/jsx";
 
       function render() {
-        const panelWidth = createSignal("100%");
-        return <View style={{ width: panelWidth, opacity: 0.85 }} />;
+        const panelWidth = signal("100%");
+        return <View style={{ width: panelWidth.get(), opacity: 0.85 }} />;
       }
     `);
 
@@ -1022,11 +1022,11 @@ describe("@jue/compiler", () => {
 
   it("compiles a conditional JSX expression into a conditional region", () => {
     const result = compile(`
-      import { View, Text, createSignal } from "@jue/jsx";
+      import { View, Text, signal } from "@jue/jsx";
 
       function render() {
-        const visible = createSignal(true);
-        return <View>{visible ? <Text>on</Text> : <Text>off</Text>}</View>;
+        const visible = signal(true);
+        return <View>{visible.get() ? <Text>on</Text> : <Text>off</Text>}</View>;
       }
     `);
 
@@ -1041,13 +1041,13 @@ describe("@jue/compiler", () => {
 
   it("compiles a Show primitive into a conditional region", () => {
     const result = compile(`
-      import { Show, Text, View, createSignal } from "@jue/jsx";
+      import { Show, Text, View, signal } from "@jue/jsx";
 
       export function render() {
-        const visible = createSignal(true);
+        const visible = signal(true);
         return (
           <View>
-            <Show when={visible} fallback={<Text>off</Text>}>
+            <Show when={visible.get()} fallback={<Text>off</Text>}>
               <Text>on</Text>
             </Show>
           </View>
@@ -1066,17 +1066,17 @@ describe("@jue/compiler", () => {
 
   it("compiles a List JSX primitive into a keyed list region", () => {
     const result = compile(`
-      import { List, Text, View, createSignal } from "@jue/jsx";
+      import { List, Text, View, signal } from "@jue/jsx";
 
       export function render() {
-        const items = createSignal([
+        const items = signal([
           { id: "a", label: "Alpha" },
           { id: "b", label: "Bravo" }
         ]);
 
         return (
           <View>
-            <List each={items} by={item => item.id}>
+            <List each={items.get()} by={item => item.id}>
               {item => <Text>{item.label}</Text>}
             </List>
           </View>
@@ -1094,10 +1094,10 @@ describe("@jue/compiler", () => {
 
   it("compiles a VirtualList JSX primitive into a virtual list region", () => {
     const result = compile(`
-      import { Text, View, VirtualList, createSignal } from "@jue/jsx";
+      import { Text, View, VirtualList, signal } from "@jue/jsx";
 
       export function render() {
-        const rows = createSignal([
+        const rows = signal([
           { id: "0", label: "Row 00" },
           { id: "1", label: "Row 01" },
           { id: "2", label: "Row 02" }
@@ -1105,7 +1105,7 @@ describe("@jue/compiler", () => {
 
         return (
           <View>
-            <VirtualList each={rows} by={row => row.id} estimateSize={() => 44} overscan={1}>
+            <VirtualList each={rows.get()} by={row => row.id} estimateSize={() => 44} overscan={1}>
               {row => <Text>{row.label}</Text>}
             </VirtualList>
           </View>
@@ -1123,12 +1123,12 @@ describe("@jue/compiler", () => {
 
   it("rejects structure primitives as the render root", () => {
     const result = compile(`
-      import { List, Text, createSignal } from "@jue/jsx";
+      import { List, Text, signal } from "@jue/jsx";
 
       export function render() {
-        const items = createSignal([{ id: "a", label: "Alpha" }]);
+        const items = signal([{ id: "a", label: "Alpha" }]);
         return (
-          <List each={items} by={item => item.id}>
+          <List each={items.get()} by={item => item.id}>
             {item => <Text>{item.label}</Text>}
           </List>
         );
@@ -1147,13 +1147,13 @@ describe("@jue/compiler", () => {
 
   it("rejects Portal primitives until portal support exists", () => {
     const result = compile(`
-      import { Portal, Text, View, createSignal } from "@jue/jsx";
+      import { Portal, Text, View, signal } from "@jue/jsx";
 
       export function render() {
-        const target = createSignal("overlay");
+        const target = signal("overlay");
         return (
           <View>
-            <Portal target={target}>
+            <Portal target={target.get()}>
               <Text>overlay</Text>
             </Portal>
           </View>
@@ -1171,13 +1171,13 @@ describe("@jue/compiler", () => {
     });
   });
 
-  it("compiles createSignal declarations into signal slots and initial values", () => {
+  it("compiles signal declarations into signal slots and initial values", () => {
     const result = compile(`
-      import { View, Text, createSignal } from "@jue/jsx";
+      import { View, Text, signal } from "@jue/jsx";
 
       export function render() {
-        const aaa = createSignal("123");
-        return <View><Text>{aaa}</Text></View>;
+        const aaa = signal("123");
+        return <View><Text>{aaa.get()}</Text></View>;
       }
     `);
 
@@ -1190,13 +1190,33 @@ describe("@jue/compiler", () => {
     expect(Array.from(result.value.bindingOpcode)).toEqual([0]);
   });
 
-  it("supports aliased createSignal imports", () => {
+  it("rejects bare signal reads and requires .get()", () => {
     const result = compile(`
-      import { View, Text, createSignal as signal } from "@jue/jsx";
+      import { View, Text, signal } from "@jue/jsx";
+
+      export function render() {
+        const title = signal("hello");
+        return <View><Text>{title}</Text></View>;
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_EXPRESSION",
+        message: "compile() requires signal reads to use .get(), got identifier title."
+      }
+    });
+  });
+
+  it("supports aliased signal imports", () => {
+    const result = compile(`
+      import { View, Text, signal as signal } from "@jue/jsx";
 
       export function render() {
         const aaa = signal("123");
-        return <View><Text>{aaa}</Text></View>;
+        return <View><Text>{aaa.get()}</Text></View>;
       }
     `);
 
@@ -1208,20 +1228,20 @@ describe("@jue/compiler", () => {
     expect(result.value.signalToBindingCount).toEqual(new Uint32Array([1]));
   });
 
-  it("supports createSignal initializers referenced through local const aliases", () => {
+  it("supports signal initializers referenced through local const aliases", () => {
     const result = compile(`
-      import { Text, View, createSignal } from "@jue/jsx";
+      import { Text, View, signal } from "@jue/jsx";
 
       export function render() {
         const rowsSeed = [
           { id: "row-00", label: "Row 00" },
           { id: "row-01", label: "Row 01" }
         ];
-        const rows = createSignal(rowsSeed);
+        const rows = signal(rowsSeed);
 
         return (
           <View>
-            <Text>{rows}</Text>
+            <Text>{rows.get()}</Text>
           </View>
         );
       }
@@ -1235,19 +1255,19 @@ describe("@jue/compiler", () => {
     expect(Array.from(result.value.signalToBindingCount)).toEqual([1]);
   });
 
-  it("supports static Array.from createSignal initializers", () => {
+  it("supports static Array.from signal initializers", () => {
     const result = compile(`
-      import { Text, View, createSignal } from "@jue/jsx";
+      import { Text, View, signal } from "@jue/jsx";
 
       export function render() {
-        const rows = createSignal(Array.from({ length: 3 }, (_, i) => ({
+        const rows = signal(Array.from({ length: 3 }, (_, i) => ({
           id: \`row-\${i}\`,
           label: \`Row \${i}\`
         })));
 
         return (
           <View>
-            <Text>{rows}</Text>
+            <Text>{rows.get()}</Text>
           </View>
         );
       }
@@ -1263,14 +1283,14 @@ describe("@jue/compiler", () => {
 
   it("supports template literal signal initializers with static interpolation", () => {
     const result = compile(`
-      import { Text, View, createSignal } from "@jue/jsx";
+      import { Text, View, signal } from "@jue/jsx";
 
       export function render() {
-        const label = createSignal(\`Row \${2}\`);
+        const label = signal(\`Row \${2}\`);
 
         return (
           <View>
-            <Text>{label}</Text>
+            <Text>{label.get()}</Text>
           </View>
         );
       }
@@ -1284,12 +1304,12 @@ describe("@jue/compiler", () => {
     expect(Array.from(result.value.signalToBindingCount)).toEqual([1]);
   });
 
-  it("rejects identifier bindings that are not declared with createSignal", () => {
+  it("rejects identifier bindings that are not declared with signal", () => {
     const result = compile(`
       import { View, Text } from "@jue/jsx";
 
       export function render() {
-        return <View><Text>{aaa}</Text></View>;
+        return <View><Text>{aaa.get()}</Text></View>;
       }
     `);
 
@@ -1298,7 +1318,7 @@ describe("@jue/compiler", () => {
       value: null,
       error: {
         code: "SIGNAL_REFERENCE_MISSING",
-        message: "Signal aaa is not declared with createSignal()."
+        message: "Signal aaa is not declared with signal()."
       }
     });
   });
@@ -1343,13 +1363,13 @@ describe("@jue/compiler", () => {
 
   it("rejects List primitives that omit by selectors", () => {
     const result = compile(`
-      import { List, Text, View, createSignal } from "@jue/jsx";
+      import { List, Text, View, signal } from "@jue/jsx";
 
       export function render() {
-        const items = createSignal([{ id: "a", label: "Alpha" }]);
+        const items = signal([{ id: "a", label: "Alpha" }]);
         return (
           <View>
-            <List each={items}>
+            <List each={items.get()}>
               {item => <Text>{item.label}</Text>}
             </List>
           </View>
@@ -1369,10 +1389,10 @@ describe("@jue/compiler", () => {
 
   it("rejects List primitives that omit each sources", () => {
     const result = compile(`
-      import { List, Text, View, createSignal } from "@jue/jsx";
+      import { List, Text, View, signal } from "@jue/jsx";
 
       export function render() {
-        const items = createSignal([{ id: "a", label: "Alpha" }]);
+        const items = signal([{ id: "a", label: "Alpha" }]);
         return (
           <View>
             <List by={item => item.id}>
@@ -1395,14 +1415,14 @@ describe("@jue/compiler", () => {
 
   it("rejects VirtualList primitives with non-static overscan values", () => {
     const result = compile(`
-      import { Text, View, VirtualList, createSignal } from "@jue/jsx";
+      import { Text, View, VirtualList, signal } from "@jue/jsx";
 
       export function render() {
-        const rows = createSignal([{ id: "0", label: "Row 00" }]);
-        const overscan = createSignal(2);
+        const rows = signal([{ id: "0", label: "Row 00" }]);
+        const overscan = signal(2);
         return (
           <View>
-            <VirtualList each={rows} by={row => row.id} estimateSize={() => 44} overscan={overscan}>
+            <VirtualList each={rows.get()} by={row => row.id} estimateSize={() => 44} overscan={overscan.get()}>
               {row => <Text>{row.label}</Text>}
             </VirtualList>
           </View>
@@ -1422,13 +1442,13 @@ describe("@jue/compiler", () => {
 
   it("rejects List selectors that are not direct property paths", () => {
     const result = compile(`
-      import { List, Text, View, createSignal } from "@jue/jsx";
+      import { List, Text, View, signal } from "@jue/jsx";
 
       export function render() {
-        const items = createSignal([{ id: "a", label: "Alpha" }]);
+        const items = signal([{ id: "a", label: "Alpha" }]);
         return (
           <View>
-            <List each={items} by={item => item.id.toUpperCase()}>
+            <List each={items.get()} by={item => item.id.toUpperCase()}>
               {item => <Text>{item.label}</Text>}
             </List>
           </View>
@@ -1448,13 +1468,13 @@ describe("@jue/compiler", () => {
 
   it("rejects List primitives whose children are not render callbacks", () => {
     const result = compile(`
-      import { List, Text, View, createSignal } from "@jue/jsx";
+      import { List, Text, View, signal } from "@jue/jsx";
 
       export function render() {
-        const items = createSignal([{ id: "a", label: "Alpha" }]);
+        const items = signal([{ id: "a", label: "Alpha" }]);
         return (
           <View>
-            <List each={items} by={item => item.id}>
+            <List each={items.get()} by={item => item.id}>
               <Text>bad</Text>
             </List>
           </View>
@@ -1474,15 +1494,15 @@ describe("@jue/compiler", () => {
 
   it("rejects event handlers inside List template callbacks", () => {
     const result = compile(`
-      import { Button, List, Text, View, createSignal } from "@jue/jsx";
+      import { Button, List, Text, View, signal } from "@jue/jsx";
 
       function handlePress() {}
 
       export function render() {
-        const items = createSignal([{ id: "a", label: "Alpha" }]);
+        const items = signal([{ id: "a", label: "Alpha" }]);
         return (
           <View>
-            <List each={items} by={item => item.id}>
+            <List each={items.get()} by={item => item.id}>
               {item => (
                 <Button onPress={handlePress}>
                   <Text>{item.label}</Text>
@@ -1516,7 +1536,7 @@ describe("@jue/compiler", () => {
       value: null,
       error: {
         code: "UNSUPPORTED_ROOT_SHAPE",
-        message: "compile() currently requires a function that returns a single JSX element."
+        message: "compile() requires root component render to return a single JSX element."
       }
     });
   });
@@ -1533,17 +1553,91 @@ describe("@jue/compiler", () => {
       value: null,
       error: {
         code: "UNSUPPORTED_ROOT_SHAPE",
-        message: "compile() currently requires a render() function."
+        message: "compile() could not find root component render."
+      }
+    });
+  });
+
+  it("compiles a named root component when rootSymbol is provided", () => {
+    const result = compile(`
+      import { View, Text, signal } from "@jue/jsx";
+
+      export function App() {
+        const title = signal("hello");
+        return <View><Text>{title.get()}</Text></View>;
+      }
+    `, { rootSymbol: "App" });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(Array.from(result.value.bindingOpcode)).toEqual([0]);
+  });
+
+  it("reports the requested root component when it cannot be found", () => {
+    const result = compile(`
+      import { View } from "@jue/jsx";
+
+      export function App() {
+        return <View />;
+      }
+    `, { rootSymbol: "Page" });
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_ROOT_SHAPE",
+        message: "compile() could not find root component Page."
+      }
+    });
+  });
+
+  it("compiles an exported const arrow root when rootSymbol is provided", () => {
+    const result = compile(`
+      import { View, Text, signal } from "@jue/jsx";
+
+      export const App = () => {
+        const title = signal("hello");
+        return <View><Text>{title.get()}</Text></View>;
+      };
+    `, { rootSymbol: "App" });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(Array.from(result.value.bindingOpcode)).toEqual([0]);
+  });
+
+  it("rejects using the selected root symbol as an event handler", () => {
+    const result = compile(`
+      import { Button, View } from "@jue/jsx";
+
+      export function App() {
+        return <View><Button onPress={App}>go</Button></View>;
+      }
+    `, { rootSymbol: "App" });
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_EVENT_HANDLER",
+        message: "compile() could not resolve event handler App."
       }
     });
   });
 
   it("rejects non-const signal declarations", () => {
     const result = compile(`
-      import { View, createSignal } from "@jue/jsx";
+      import { View, signal } from "@jue/jsx";
 
       export function render() {
-        let flag = createSignal(true);
+        let flag = signal(true);
         return <View />;
       }
     `);
@@ -1560,10 +1654,10 @@ describe("@jue/compiler", () => {
 
   it("rejects unsupported signal initializers", () => {
     const result = compile(`
-      import { View, createSignal } from "@jue/jsx";
+      import { View, signal } from "@jue/jsx";
 
       export function render() {
-        const value = createSignal(new Map());
+        const value = signal(new Map());
         return <View />;
       }
     `);
@@ -1573,17 +1667,17 @@ describe("@jue/compiler", () => {
       value: null,
       error: {
         code: "UNSUPPORTED_SIGNAL_INITIALIZER",
-        message: "compile() only supports literal createSignal() initializers, got NewExpression."
+        message: "compile() only supports literal signal() initializers, got NewExpression."
       }
     });
   });
 
   it("rejects unsupported style object expressions", () => {
     const result = compile(`
-      import { View, createSignal } from "@jue/jsx";
+      import { View, signal } from "@jue/jsx";
 
       export function render() {
-        const width = createSignal("100%");
+        const width = signal("100%");
         return <View style={{ [width]: width }} />;
       }
     `);

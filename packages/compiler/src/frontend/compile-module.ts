@@ -12,6 +12,7 @@ import {
   type CompiledVirtualListDescriptor
 } from "./compile-to-block-ir";
 import { parseModule } from "./parse";
+import { findTopLevelRootComponent } from "./root-component";
 
 type GenerateFunction = typeof generateModule;
 const generate = resolveGenerateFunction(generateModule);
@@ -26,6 +27,10 @@ export interface CompiledModule {
   readonly virtualListDescriptors: readonly SerializedVirtualListDescriptor[];
   readonly runtimeCode: string;
   readonly handlerNames: readonly string[];
+}
+
+export interface CompileModuleOptions {
+  readonly rootSymbol?: string;
 }
 
 export interface SignalRuntimeBridge {
@@ -92,11 +97,15 @@ export interface SerializedVirtualListDescriptor extends SerializedKeyedListDesc
 }
 
 export function compileModule(
-  source: string
+  source: string,
+  options: CompileModuleOptions = {}
 ): Result<CompiledModule, CompileToBlockIRError> {
   const ast = parseModule(source);
-  const runtime = buildRuntimeStatements(ast);
+  const rootSymbol = options.rootSymbol ?? "render";
+  const signalFactoryLocalNames = collectSignalFactoryLocalNames(ast);
+  const runtime = buildRuntimeStatements(ast, rootSymbol, signalFactoryLocalNames);
   const block = compileSourceToBlockIR(source, {
+    rootSymbol,
     handlers: Object.fromEntries(runtime.handlerNames.map(name => [name, createHandlerMarker(name)]))
   });
   if (!block.ok) {
@@ -302,7 +311,11 @@ function createRuntimeModuleCode(
   `;
 }
 
-function buildRuntimeStatements(ast: t.File): {
+function buildRuntimeStatements(
+  ast: t.File,
+  rootSymbol: string,
+  signalFactoryLocalNames: ReadonlySet<string>
+): {
   readonly importCode: string;
   readonly code: string;
   readonly handlerNames: readonly string[];
@@ -310,6 +323,7 @@ function buildRuntimeStatements(ast: t.File): {
   const imports: t.ImportDeclaration[] = [];
   const statements: t.Statement[] = [];
   const handlerNames: string[] = [];
+  const rootComponent = findTopLevelRootComponent(ast, rootSymbol);
 
   for (const statement of ast.program.body) {
     if (t.isImportDeclaration(statement)) {
@@ -321,7 +335,7 @@ function buildRuntimeStatements(ast: t.File): {
       continue;
     }
 
-    if (isRenderFunctionStatement(statement)) {
+    if (rootComponent && statement === rootComponent.statement) {
       continue;
     }
 
@@ -331,16 +345,30 @@ function buildRuntimeStatements(ast: t.File): {
       continue;
     }
 
+    if (
+      t.isExportNamedDeclaration(statement) &&
+      t.isFunctionDeclaration(statement.declaration) &&
+      statement.declaration.id
+    ) {
+      handlerNames.push(statement.declaration.id.name);
+      statements.push(statement.declaration);
+      continue;
+    }
+
     if (t.isTSInterfaceDeclaration(statement) || t.isTSTypeAliasDeclaration(statement)) {
       statements.push(statement);
       continue;
     }
 
     if (t.isVariableDeclaration(statement)) {
-      if (statement.declarations.some(isSignalFactoryDeclaration)) {
+      const runtimeDeclarations = statement.declarations.filter(
+        declaration => !isSignalFactoryDeclaration(declaration, signalFactoryLocalNames)
+      );
+      if (runtimeDeclarations.length === 0) {
         continue;
       }
-      statements.push(statement);
+
+      statements.push(t.variableDeclaration(statement.kind, runtimeDeclarations));
     }
   }
 
@@ -360,22 +388,37 @@ function buildRuntimeStatements(ast: t.File): {
   };
 }
 
-function isSignalFactoryDeclaration(declaration: t.VariableDeclarator): boolean {
+function collectSignalFactoryLocalNames(ast: t.File): ReadonlySet<string> {
+  const signalFactoryLocalNames = new Set<string>();
+
+  for (const statement of ast.program.body) {
+    if (!t.isImportDeclaration(statement) || statement.source.value !== "@jue/jsx") {
+      continue;
+    }
+
+    for (const specifier of statement.specifiers) {
+      if (!t.isImportSpecifier(specifier) || !t.isIdentifier(specifier.imported)) {
+        continue;
+      }
+
+      if (specifier.imported.name === "signal") {
+        signalFactoryLocalNames.add(specifier.local.name);
+      }
+    }
+  }
+
+  return signalFactoryLocalNames;
+}
+
+function isSignalFactoryDeclaration(
+  declaration: t.VariableDeclarator,
+  signalFactoryLocalNames: ReadonlySet<string>
+): boolean {
   if (!declaration.init || !t.isCallExpression(declaration.init) || !t.isIdentifier(declaration.init.callee)) {
     return false;
   }
 
-  return declaration.init.callee.name === "createSignal" || declaration.init.callee.name === "signal";
-}
-
-function isRenderFunctionStatement(statement: t.Statement): boolean {
-  if (t.isFunctionDeclaration(statement) && statement.id?.name === "render") {
-    return true;
-  }
-
-  return t.isExportNamedDeclaration(statement) &&
-    t.isFunctionDeclaration(statement.declaration) &&
-    statement.declaration.id?.name === "render";
+  return signalFactoryLocalNames.has(declaration.init.callee.name);
 }
 
 function serializeBlueprint(blueprint: Blueprint): SerializedBlueprint {

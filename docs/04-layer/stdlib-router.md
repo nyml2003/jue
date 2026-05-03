@@ -109,11 +109,12 @@ tooling 可以：
 ### 例 1：创建 router
 
 ```ts
+import { Lane } from "jue"
 import { createRouter, createHistoryBridge } from "@jue/router"
 
 const router = createRouter({
   history: createHistoryBridge(window.history, window.location),
-  lane: "VISIBLE_UPDATE"
+  lane: Lane.VISIBLE_UPDATE
 })
 ```
 
@@ -137,7 +138,7 @@ router.navigate({
   name: "issue",
   params: { id: "42" },
   query: { tab: "activity" }
-}, { lane: "VISIBLE_UPDATE" })
+}, { lane: Lane.VISIBLE_UPDATE })
 ```
 
 ## 明确边界
@@ -151,10 +152,10 @@ router.navigate({
 
 如果后面要做这些，它们应该建立在 router 之上，而不是塞回 router。
 
-## 阶段判断
+## 实现时机判断
 
 - 所属层：Official Standard Library
-- 阶段：Phase 2
+- 当前时机：主线路径能力
 - 优先级：中高
 
 推进前提：

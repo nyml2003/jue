@@ -1,0 +1,11 @@
+{
+  "pages": [
+    "pages/showcase/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "jue mobile showcase",
+    "navigationBarBackgroundColor": "#f5f3ea",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f5f3ea"
+  }
+}

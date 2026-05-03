@@ -3,7 +3,7 @@
 当前文档按三层结构组织：
 
 - `01-overview`
-  - 讲项目是什么、现在在哪个阶段、接下来往哪里走
+  - 讲项目是什么、现在的真实实现状态、接下来怎么收口
 - `02-core-specs`
   - 讲 runtime / compiler / IR / host / scheduler 的核心契约
 - `03-engineering`
@@ -15,19 +15,26 @@
 
 1. `01-overview/current-status.md`
 2. `01-overview/architecture.md`
-3. `01-overview/roadmap/`
-4. `02-core-specs/*`
-5. `03-engineering/*`
-6. `04-layer/*`
+3. `01-overview/implementation-plan.md`
+4. `02-core-specs/authoring-grammar-spec.md`
+5. `02-core-specs/*`
+6. `03-engineering/*`
+7. `04-layer/*`
+
+当前如果你关心小程序 / Skyline 线，建议再补读：
+
+8. `04-layer/miniprogram-target-strategy.md`
+9. `../examples/mobile/jue-mobile-showcase/README.md`
 
 ## 01 Overview
 
 - [架构设计](./01-overview/architecture.md)
-- [路线图](./01-overview/roadmap/README.md)
 - [当前现状](./01-overview/current-status.md)
+- [实现方案](./01-overview/implementation-plan.md)
 
 ## 02 Core Specs
 
+- [Authoring Grammar 规范](./02-core-specs/authoring-grammar-spec.md)
 - [运行时模型](./02-core-specs/runtime-model.md)
 - [编译策略](./02-core-specs/compiler-strategy.md)
 - [IR 规范](./02-core-specs/ir-spec.md)
@@ -47,7 +54,8 @@
 
 - [开发世界边界](./04-layer/layer-model.md)
 - [包规划图](./04-layer/package-map.md)
-- [Phase 2 包矩阵](./04-layer/phase-2-package-matrix.md)
+- [小程序 Target 策略](./04-layer/miniprogram-target-strategy.md)
+- [支持矩阵](./04-layer/phase-2-package-matrix.md)
 - [`@jue/stream` 边界](./04-layer/stdlib-stream.md)
 - [`@jue/router` 边界](./04-layer/stdlib-router.md)
 - [`@jue/query` 边界](./04-layer/stdlib-query.md)

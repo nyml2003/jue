@@ -111,17 +111,17 @@ tooling 可以：
 ### 例 1：region enter / leave
 
 ```tsx
-import { createSignal, View, Text } from "@jue/jsx"
+import { signal, View, Text } from "@jue/jsx"
 import { Transition } from "@jue/animation"
 
 export function Panel() {
-  const open = createSignal(true)
+  const open = signal(true)
 
   return (
     <Transition
       when={open.get()}
-      enter={{ duration: 180, easing: "ease-out", lane: "VISIBLE_UPDATE" }}
-      leave={{ duration: 120, easing: "ease-in", lane: "VISIBLE_UPDATE" }}
+      enter={{ duration: 180, easing: "ease-out", lane: Lane.VISIBLE_UPDATE }}
+      leave={{ duration: 120, easing: "ease-in", lane: Lane.VISIBLE_UPDATE }}
     >
       <View>
         <Text>Panel</Text>
@@ -134,17 +134,17 @@ export function Panel() {
 ### 例 2：值插值
 
 ```tsx
-import { createSignal, View } from "@jue/jsx"
+import { signal, View } from "@jue/jsx"
 import { animate } from "@jue/animation"
 
 export function FadeBadge() {
-  const visible = createSignal(true)
+  const visible = signal(true)
   const opacity = animate({
     when: visible.get(),
     from: 0,
     to: 1,
     duration: 150,
-    lane: "VISIBLE_UPDATE"
+    lane: Lane.VISIBLE_UPDATE
   })
 
   return <View style={{ opacity: opacity.get() }} />
@@ -157,7 +157,7 @@ export function FadeBadge() {
 sequence([
   tween({ from: 0, to: 1, duration: 120 }),
   tween({ from: 1, to: 0.96, duration: 80 })
-], { lane: "DEFERRED" })
+], { lane: Lane.DEFERRED })
 ```
 
 ## 明确边界
@@ -170,10 +170,10 @@ sequence([
 
 它应该只负责“动效策略与时间组合”，不负责“宿主如何执行所有动画”。
 
-## 阶段判断
+## 实现时机判断
 
 - 所属层：Official Standard Library
-- 阶段：Phase 3
+- 当前时机：后续扩面
 - 优先级：中
 
 推进前提：

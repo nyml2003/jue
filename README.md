@@ -11,7 +11,7 @@
 
 ## 当前状态
 
-`Phase 2` 正在重做验收。
+当前正在重做支持验收。
 
 当前更准确的状态是：
 
@@ -19,19 +19,20 @@
 - `@jue/compiler/frontend`、`@jue/compiler/ir`、`@jue/compiler/lowering`、`@jue/compiler/builder` 已形成明确边界
 - `@jue/runtime-core/reactivity`、`@jue/runtime-core/host-contract`、`@jue/runtime-core/channel` 已形成明确边界
 - `examples/web-playground/apps/*` 已是从 `.component.tsx -> generated/page.generated.ts -> mount` 的真实回归面
+- `@jue/skyline` 已形成最小 compile-time target 边界，`examples/mobile/jue-mobile-showcase` 已证明同一份 TSX source 可生成 browser 和 miniprogram 两套产物
 - `@jue/examples`、`@jue/inspect`、`@jue/testkit`、`@jue/bench` 已形成第一版 tooling 闭环
 - `@jue/primitives`、`@jue/authoring-check`、`@jue/stream`、`@jue/router`、`@jue/query`、`@jue/devtrace`、`@jue/docsgen` 已落成第一版包面
 - 但这些能力还没有全部通过新的“非调试、端到端、完备用例”验收线
 
-当前主线不是“进入 Phase 3”，而是：
+当前主线不是继续扩世界，而是：
 
-- 先按新的支持标准重做 `Phase 2` 验收
+- 先按新的支持标准重做支持验收
 - 先修 compiler 主路径，再决定哪些能力真的能被标成支持
 
 建议阅读顺序：
 
 1. 先读文档总索引和当前现状
-2. 再读 architecture / roadmap
+2. 再读 architecture / implementation plan
 3. 再读 runtime / compiler / IR 等核心规范
 
 ## 文档索引
@@ -39,10 +40,11 @@
 - [文档总索引](./docs/README.md)
 - [当前现状](./docs/01-overview/current-status.md)
 - [架构设计](./docs/01-overview/architecture.md)
-- [路线图](./docs/01-overview/roadmap/README.md)
+- [实现方案](./docs/01-overview/implementation-plan.md)
 - [开发世界边界](./docs/04-layer/layer-model.md)
 - [包规划图](./docs/04-layer/package-map.md)
 - [运行时模型](./docs/02-core-specs/runtime-model.md)
+- [Authoring Grammar 规范](./docs/02-core-specs/authoring-grammar-spec.md)
 - [编译策略](./docs/02-core-specs/compiler-strategy.md)
 - [IR 规范](./docs/02-core-specs/ir-spec.md)
 - [API 草案](./docs/02-core-specs/api-draft.md)
@@ -87,7 +89,7 @@
 
 ## 直接下一步
 
-下一步不是直接进入 `Phase 3`，而是继续完成 `Phase 2`：
+下一步不是直接扩新层，而是继续完成主路径收口：
 
 - 把 `Show` 变成真正零胶水的 authoring 能力
 - 把 `stream / router / query` 变成真正可跨端的 TSX 主路径能力

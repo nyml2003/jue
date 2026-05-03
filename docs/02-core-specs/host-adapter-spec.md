@@ -67,12 +67,34 @@ host adapter 不能做：
 - `jue/canvas`
 - `jue/terminal`
 
+但要注意：不是所有宿主都应该被建模成“命令式节点 adapter”。
+
+像微信小程序这类模板驱动宿主，更合理的落点通常是：
+
+- `jue/miniprogram`
+- 或 `jue/skyline`
+
+它们默认应被视为 target / backend，而不是直接复用当前 `HostAdapter` contract 的同类宿主。
+
 规范层 `jue` 只定义：
 
 - 宿主无关原语
 - host adapter contract 类型
 
 各适配包只做映射，不改主语义。
+
+如果某个宿主主要依赖模板生成、数据同步和事件桥接，而不是运行时节点创建与插拔，那么：
+
+1. 仍然要复用同一套宿主无关原语
+2. 但不要求必须强行落进 `createNode / insert / remove` 这一类节点 contract
+3. 更推荐新增官方 target 包，在编译后端完成模板、样式、事件和更新路径生成
+
+这里要再强调一次：
+
+- `HostAdapter` 是节点宿主 contract
+- 模板宿主应该走 target/backend contract
+
+不要把两者硬拼成一个“万能 Renderer”接口。
 
 ## 宿主节点模型
 
@@ -100,6 +122,8 @@ host adapter 不能做：
 
 ## Host Adapter Contract
 
+这一节定义的是“节点宿主 contract”，不是所有宿主后端的统一超集。
+
 建议最小 contract：
 
 ```ts
@@ -125,6 +149,36 @@ interface HostAdapter {
 - `setProp`、`setStyle`、`setEvent` 由 adapter 自己翻译成宿主行为
 - `beginBatch` / `endBatch` 是可选优化钩子，不是核心调度入口
 - 可预期失败统一返回 `Result`，不用 `throw` 做常规控制流
+
+硬规则：
+
+1. 不要把 `setDataPath()` 这类模板宿主专用更新入口塞进这里
+2. 不要为了兼容小程序，把节点宿主 contract 退化成最小公分母
+3. 小程序、Skyline 这类模板宿主应走独立 target artifact + target glue 路线
+
+## Template Target Contract
+
+对于模板宿主，更合理的边界不是 `HostAdapter`，而是 target/backend contract。
+
+它要回答的是：
+
+- 模板结构如何生成
+- 动态路径如何编号
+- 事件如何桥回 authoring handler
+- batched patch 如何提交到宿主
+
+也就是说，模板宿主更像消费下面这些东西：
+
+- template tree
+- data path plan
+- methods bridge
+- target patch queue
+
+而不是消费：
+
+- `createNode`
+- `insert`
+- `remove`
 
 ## 宿主原语映射
 
@@ -167,6 +221,25 @@ Canvas 不是 DOM 树，adapter 可以映射到绘制节点或场景节点：
 - `ScrollView -> clipped group + scroll offset`
 
 重点不在“长得一样”，而在“语义一致”。
+
+### 模板宿主建议映射
+
+有些宿主不是“运行时节点树优先”，而是“模板 + 数据更新优先”。
+
+微信小程序就是典型例子。
+
+这类宿主建议这样处理：
+
+- `View / Text / Button / Input / Image / ScrollView` 仍保持同一套主语义原语
+- 结构和静态样式优先在编译期生成模板产物
+- 动态内容优先编译成最小更新路径
+- 事件优先桥接回宿主 methods / handlers
+
+也就是说：
+
+- 原语语义继续共享
+- 但后端形态不一定是节点 adapter
+- runtime-core 也不应该假设模板宿主一定存在 `HostNode[]`
 
 ## 属性映射规则
 
@@ -400,6 +473,12 @@ adapter 应该提供最小调试信息：
 - Web 最容易验证原语和事件映射
 - Native 最能暴露“主规范是否被 Web 绑死”
 - 只有在这两者都成立后，其他宿主才有扩展意义
+
+补充：
+
+- 模板宿主不必等价于 `native`
+- 如果要进入微信小程序，推荐单独走 `Skyline + glass-easel` target 路线
+- 这条路线主要验证的是“主语义能否脱离 DOM 心智”，而不是“现有 adapter contract 能否硬套到所有宿主”
 
 ## 验证清单
 

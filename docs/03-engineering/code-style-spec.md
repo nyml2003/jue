@@ -306,8 +306,14 @@ memo(() => count.get() * price.get())
 要求：
 
 - `strict: true`
-- 不用 `any`
+- 整个前端仓库不用显式 `any`
+- 整个前端仓库不用 `this`
 - 尽量避免不必要的类型断言
+
+作者代码、业务代码和 public authoring API 里：
+
+- 不显式写 `undefined`
+- 需要空值时优先用 `null`、Option 或省略字段
 
 ### 2. 公共接口必须结构明确
 

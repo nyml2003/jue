@@ -1,0 +1,110 @@
+:root {
+  color: #162235;
+  background:
+    radial-gradient(circle at top left, rgba(241, 177, 83, 0.35), transparent 36%),
+    linear-gradient(135deg, #f4efe4 0%, #dbe7f3 100%);
+  font-family: "Segoe UI", "PingFang SC", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.demo-shell {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  padding: 32px;
+}
+
+.demo-column {
+  display: grid;
+  gap: 12px;
+}
+
+.demo-kicker {
+  margin: 0;
+  color: #5b6f88;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.demo-card {
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+  border: 1px solid rgba(22, 34, 53, 0.12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 18px 40px rgba(52, 73, 94, 0.12);
+}
+
+.demo-eyebrow {
+  color: #7d5c16;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.demo-title {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.demo-summary,
+.demo-note,
+.demo-banner-body,
+.demo-count {
+  color: #485b71;
+  line-height: 1.5;
+}
+
+.demo-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.demo-button {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.demo-button--primary {
+  color: white;
+  background: #1d5b93;
+}
+
+.demo-button--secondary {
+  color: #1d5b93;
+  background: #d8e8f6;
+}
+
+.demo-banner {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 16px;
+}
+
+.demo-banner--risk {
+  background: #f8d8cd;
+}
+
+.demo-banner--safe {
+  background: #d8efdf;
+}
+
+.demo-banner-title {
+  font-weight: 700;
+}

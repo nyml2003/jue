@@ -102,6 +102,7 @@ docs/
 
 - `strict: true`
 - `noImplicitOverride: true`
+- `noImplicitThis: true`
 - `exactOptionalPropertyTypes: true`
 - `noUncheckedIndexedAccess: true`
 
@@ -217,10 +218,12 @@ docs/
 ### 应重点检查
 
 - 禁止 `any`
+- 禁止 `this`
 - 禁止未使用变量
 - 禁止隐式依赖收集入口
 - 禁止 adapter 引用 runtime 私有实现
 - 禁止 runtime 直接引用宿主包
+- 禁止作者代码和 public authoring API 显式写 `undefined`
 
 ### 原则
 

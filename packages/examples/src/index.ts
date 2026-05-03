@@ -6,6 +6,7 @@ export interface ExampleAppDefinition {
   readonly id: string;
   readonly appRoot: string;
   readonly componentPath: string;
+  readonly rootSymbol: string;
   readonly generatedModulePath: string;
   readonly runtimeEntryPath: string;
   readonly unitTestPath: string;
@@ -28,6 +29,7 @@ export function createExampleAppDefinition(appRoot: string): ExampleAppDefinitio
     id,
     appRoot,
     componentPath: join(appRoot, "page.component.tsx"),
+    rootSymbol: "render",
     generatedModulePath: join(appRoot, "generated", "page.generated.ts"),
     runtimeEntryPath: join(appRoot, "page.ts"),
     unitTestPath: join(appRoot, "page.test.ts"),

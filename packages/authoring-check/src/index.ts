@@ -20,6 +20,10 @@ export interface AuthoringCheckResult {
   readonly diagnostics: readonly AuthoringDiagnostic[];
 }
 
+export interface AuthoringCheckOptions {
+  readonly rootSymbol?: string;
+}
+
 export function collectReferencedPrimitives(source: string): readonly StructurePrimitiveName[] {
   const matches = source.match(/<([A-Z][A-Za-z0-9]*)/g) ?? [];
   const names = new Set<StructurePrimitiveName>();
@@ -47,14 +51,16 @@ export function createAuthoringSupportMatrix(): readonly AuthoringPrimitiveStatu
   });
 }
 
-export function checkAuthoringSource(source: string): AuthoringCheckResult {
+export function checkAuthoringSource(source: string, options: AuthoringCheckOptions = {}): AuthoringCheckResult {
   const referenced = new Set(collectReferencedPrimitives(source));
   const primitives = createAuthoringSupportMatrix().map(status => ({
     ...status,
     referenced: referenced.has(status.primitive)
   }));
   const diagnostics: AuthoringDiagnostic[] = [];
-  const compiled = compileModule(source);
+  const compiled = compileModule(source, options.rootSymbol === undefined
+    ? {}
+    : { rootSymbol: options.rootSymbol });
 
   for (const primitive of primitives) {
     if (primitive.referenced && !primitive.implemented) {

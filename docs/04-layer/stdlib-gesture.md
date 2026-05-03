@@ -114,7 +114,7 @@ import { View, Text } from "@jue/jsx"
 import { drag } from "@jue/gesture"
 
 export function Card() {
-  const x = drag({ axis: "x", threshold: 8, lane: "VISIBLE_UPDATE" })
+  const x = drag({ axis: "x", threshold: 8, lane: Lane.VISIBLE_UPDATE })
 
   return (
     <View style={{ transform: `translateX(${x.translationX.get()}px)` }}>
@@ -131,7 +131,7 @@ import { View, Text } from "@jue/jsx"
 import { swipe } from "@jue/gesture"
 
 export function DismissRow() {
-  const dismiss = swipe({ direction: "left", velocity: 1200, lane: "SYNC_INPUT" })
+  const dismiss = swipe({ direction: "left", velocity: 1200, lane: Lane.SYNC_INPUT })
 
   return (
     <View style={{ opacity: dismiss.progress.get() }}>
@@ -146,11 +146,11 @@ export function DismissRow() {
 ```ts
 const cardDragged = channel<{ id: string; deltaX: number }>("cardDragged")
 
-drag({ axis: "x", lane: "VISIBLE_UPDATE" }).subscribe(event => {
+drag({ axis: "x", lane: Lane.VISIBLE_UPDATE }).subscribe(event => {
   publish(cardDragged, {
     id: cardId,
     deltaX: event.translationX
-  }, { lane: "VISIBLE_UPDATE" })
+  }, { lane: Lane.VISIBLE_UPDATE })
 })
 ```
 
@@ -164,10 +164,10 @@ drag({ axis: "x", lane: "VISIBLE_UPDATE" }).subscribe(event => {
 
 它应该只负责“把原始输入整理成可消费的手势语义”。
 
-## 阶段判断
+## 实现时机判断
 
 - 所属层：Official Standard Library
-- 阶段：Phase 3
+- 当前时机：后续扩面
 - 优先级：中低
 
 推进前提：

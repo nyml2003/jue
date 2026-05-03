@@ -5,6 +5,7 @@ import { err, ok, type HostPrimitive, type Result } from "@jue/shared";
 import { createBlueprintBuilder, type BlueprintBuilder } from "../blueprint-builder";
 import type { BlockIR } from "../block-ir";
 import { parseModule } from "./parse";
+import { findTopLevelRootComponent, getDirectRootJsxExpression, type RootComponentCallable } from "./root-component";
 
 type TraverseFunction = typeof traverseModule;
 const traverse = resolveTraverseFunction(traverseModule);
@@ -19,7 +20,7 @@ interface FrontendState {
   initialSignalValues: unknown[];
   jsxHostPrimitives: Set<string>;
   jsxStructurePrimitives: Set<string>;
-  signalFactoryLocalNames: Set<string>;
+  signalLocalNames: Set<string>;
   staticInitializerAliases: Map<string, unknown>;
   structures: CompiledStructureDescriptor[];
   templateScope: TemplateScope | null;
@@ -80,6 +81,7 @@ export interface CompileToBlockIRResult {
 
 export interface CompileSourceToBlockIROptions {
   readonly handlers?: Readonly<Record<string, unknown>>;
+  readonly rootSymbol?: string;
 }
 
 type StaticExpressionReadResult =
@@ -113,7 +115,8 @@ export function compileSourceToBlockIR(
 ): Result<CompileToBlockIRResult, CompileToBlockIRError> {
   const ast = parseModule(source);
   const imports = collectJueJsxImports(ast);
-  const rootResult = findRenderRoot(ast);
+  const rootSymbol = options.rootSymbol ?? "render";
+  const rootResult = findRootComponent(ast, rootSymbol);
   if (!rootResult.ok) {
     return rootResult;
   }
@@ -122,21 +125,21 @@ export function compileSourceToBlockIR(
     builder: createBlueprintBuilder(),
     signalSlots: new Map<string, number>(),
     signalSymbols: new Map<string, number>(),
-    eventHandlers: collectTopLevelFunctionHandlers(ast, options.handlers),
+    eventHandlers: collectTopLevelFunctionHandlers(ast, options.handlers, rootSymbol),
     initialSignalValues: [],
     jsxHostPrimitives: imports.jsxHostPrimitives,
     jsxStructurePrimitives: imports.jsxStructurePrimitives,
-    signalFactoryLocalNames: imports.createSignalLocalNames,
+    signalLocalNames: imports.signalLocalNames,
     staticInitializerAliases: new Map<string, unknown>(),
     structures: [],
     templateScope: null
   };
-  const signalsResult = collectRenderSignalDeclarations(ast, state);
+  const signalsResult = collectRootSignalDeclarations(ast, state, rootResult.value.component);
   if (!signalsResult.ok) {
     return signalsResult;
   }
 
-  const rootNodeResult = lowerHostJsxElement(rootResult.value, state, null);
+  const rootNodeResult = lowerHostJsxElement(rootResult.value.root, state, null);
   if (!rootNodeResult.ok) {
     return rootNodeResult;
   }
@@ -160,11 +163,11 @@ export function compileSourceToBlockIR(
 function collectJueJsxImports(ast: t.File): {
   readonly jsxHostPrimitives: Set<string>;
   readonly jsxStructurePrimitives: Set<string>;
-  readonly createSignalLocalNames: Set<string>;
+  readonly signalLocalNames: Set<string>;
 } {
   const jsxHostPrimitives = new Set<string>();
   const jsxStructurePrimitives = new Set<string>();
-  const createSignalLocalNames = new Set<string>();
+  const signalLocalNames = new Set<string>();
 
   for (const statement of ast.program.body) {
     if (!t.isImportDeclaration(statement) || statement.source.value !== "@jue/jsx") {
@@ -186,8 +189,8 @@ function collectJueJsxImports(ast: t.File): {
         continue;
       }
 
-      if (specifier.imported.name === "createSignal" || specifier.imported.name === "signal") {
-        createSignalLocalNames.add(specifier.local.name);
+      if (specifier.imported.name === "signal") {
+        signalLocalNames.add(specifier.local.name);
       }
     }
   }
@@ -195,25 +198,18 @@ function collectJueJsxImports(ast: t.File): {
   return {
     jsxHostPrimitives,
     jsxStructurePrimitives,
-    createSignalLocalNames
+    signalLocalNames
   };
 }
 
-function collectRenderSignalDeclarations(
+function collectRootSignalDeclarations(
   ast: t.File,
-  state: FrontendState
+  state: FrontendState,
+  rootFunction: RootComponentCallable
 ): Result<void, CompileToBlockIRError> {
-  const renderFunction = findRenderFunction(ast);
-  if (renderFunction === null) {
-    return err({
-      code: "UNSUPPORTED_ROOT_SHAPE",
-      message: "compile() currently requires a render() function."
-    });
-  }
-
   const declarationBlocks: t.Statement[][] = [
     ast.program.body,
-    renderFunction.body.body
+    t.isBlockStatement(rootFunction.body) ? rootFunction.body.body : []
   ];
 
   for (const block of declarationBlocks) {
@@ -225,7 +221,7 @@ function collectRenderSignalDeclarations(
       for (const declaration of statement.declarations) {
         collectStaticInitializerAlias(declaration, state);
 
-        const signalDeclaration = readCreateSignalDeclaration(declaration, state);
+        const signalDeclaration = readSignalDeclaration(declaration, state);
         if (signalDeclaration === null) {
           continue;
         }
@@ -251,7 +247,7 @@ function collectRenderSignalDeclarations(
   return ok(undefined);
 }
 
-function readCreateSignalDeclaration(
+function readSignalDeclaration(
   declaration: t.VariableDeclarator,
   state: FrontendState
 ): Result<{ readonly name: string; readonly initialValue: unknown }, CompileToBlockIRError> | null {
@@ -264,14 +260,14 @@ function readCreateSignalDeclaration(
     return null;
   }
 
-  if (!state.signalFactoryLocalNames.has(init.callee.name)) {
+  if (!state.signalLocalNames.has(init.callee.name)) {
     return null;
   }
 
   if (init.arguments.length !== 1) {
     return err({
       code: "UNSUPPORTED_SIGNAL_DECLARATION",
-      message: `Signal ${declaration.id.name} must call createSignal() with exactly one initial value.`
+      message: `Signal ${declaration.id.name} must call signal() with exactly one initial value.`
     });
   }
 
@@ -279,7 +275,7 @@ function readCreateSignalDeclaration(
   if (!argument || t.isSpreadElement(argument) || t.isJSXNamespacedName(argument)) {
     return err({
       code: "UNSUPPORTED_SIGNAL_INITIALIZER",
-      message: `Signal ${declaration.id.name} uses an unsupported createSignal() initializer.`
+      message: `Signal ${declaration.id.name} uses an unsupported signal() initializer.`
     });
   }
 
@@ -312,7 +308,7 @@ function collectStaticInitializerAlias(
     return;
   }
 
-  if (t.isCallExpression(declaration.init) && t.isIdentifier(declaration.init.callee) && state.signalFactoryLocalNames.has(declaration.init.callee.name)) {
+  if (t.isCallExpression(declaration.init) && t.isIdentifier(declaration.init.callee) && state.signalLocalNames.has(declaration.init.callee.name)) {
     return;
   }
 
@@ -344,7 +340,7 @@ function readStaticSignalInitializer(
 
     return err({
       code: "UNSUPPORTED_SIGNAL_INITIALIZER",
-      message: `compile() only supports static identifier references in createSignal() initializers, got ${expression.name}.`
+      message: `compile() only supports static identifier references in signal() initializers, got ${expression.name}.`
     });
   }
 
@@ -354,7 +350,7 @@ function readStaticSignalInitializer(
       if (!element || t.isSpreadElement(element)) {
         return err({
           code: "UNSUPPORTED_SIGNAL_INITIALIZER",
-          message: "compile() does not support sparse or spread array createSignal() initializers."
+          message: "compile() does not support sparse or spread array signal() initializers."
         });
       }
 
@@ -375,7 +371,7 @@ function readStaticSignalInitializer(
       if (!t.isObjectProperty(property) || property.computed) {
         return err({
           code: "UNSUPPORTED_SIGNAL_INITIALIZER",
-          message: "compile() only supports plain object createSignal() initializers."
+          message: "compile() only supports plain object signal() initializers."
         });
       }
 
@@ -387,7 +383,7 @@ function readStaticSignalInitializer(
       if (!t.isExpression(property.value)) {
         return err({
           code: "UNSUPPORTED_SIGNAL_INITIALIZER",
-          message: "compile() only supports expression object values in createSignal() initializers."
+          message: "compile() only supports expression object values in signal() initializers."
         });
       }
 
@@ -416,7 +412,7 @@ function readStaticSignalInitializer(
       if (!t.isExpression(templateExpression)) {
         return err({
           code: "UNSUPPORTED_SIGNAL_INITIALIZER",
-          message: `compile() only supports expression template interpolations in createSignal() initializers, got ${templateExpression.type}.`
+          message: `compile() only supports expression template interpolations in signal() initializers, got ${templateExpression.type}.`
         });
       }
 
@@ -440,7 +436,7 @@ function readStaticSignalInitializer(
     if (typeof argument.value !== "number") {
       return err({
         code: "UNSUPPORTED_SIGNAL_INITIALIZER",
-        message: "compile() only supports numeric unary expressions in createSignal() initializers."
+        message: "compile() only supports numeric unary expressions in signal() initializers."
       });
     }
 
@@ -453,7 +449,7 @@ function readStaticSignalInitializer(
 
   return err({
     code: "UNSUPPORTED_SIGNAL_INITIALIZER",
-    message: `compile() only supports literal createSignal() initializers, got ${expression.type}.`
+    message: `compile() only supports literal signal() initializers, got ${expression.type}.`
   });
 }
 
@@ -468,7 +464,7 @@ function readStaticArrayFromInitializer(
   ) {
     return err({
       code: "UNSUPPORTED_SIGNAL_INITIALIZER",
-      message: `compile() only supports literal createSignal() initializers, got ${expression.type}.`
+      message: `compile() only supports literal signal() initializers, got ${expression.type}.`
     });
   }
 
@@ -476,7 +472,7 @@ function readStaticArrayFromInitializer(
   if (!sourceArgument || t.isSpreadElement(sourceArgument) || t.isArgumentPlaceholder(sourceArgument)) {
     return err({
       code: "UNSUPPORTED_SIGNAL_INITIALIZER",
-      message: "compile() requires Array.from() to receive a concrete source in createSignal() initializers."
+      message: "compile() requires Array.from() to receive a concrete source in signal() initializers."
     });
   }
 
@@ -493,14 +489,14 @@ function readStaticArrayFromInitializer(
   if (t.isSpreadElement(mapperArgument) || t.isArgumentPlaceholder(mapperArgument)) {
     return err({
       code: "UNSUPPORTED_SIGNAL_INITIALIZER",
-      message: "compile() does not support spread Array.from() mappers in createSignal() initializers."
+      message: "compile() does not support spread Array.from() mappers in signal() initializers."
     });
   }
 
   if (!t.isArrowFunctionExpression(mapperArgument) || !t.isExpression(mapperArgument.body)) {
     return err({
       code: "UNSUPPORTED_SIGNAL_INITIALIZER",
-      message: "compile() only supports expression-bodied arrow mappers in Array.from() createSignal() initializers."
+      message: "compile() only supports expression-bodied arrow mappers in Array.from() signal() initializers."
     });
   }
 
@@ -509,7 +505,7 @@ function readStaticArrayFromInitializer(
   if ((valueParam && !t.isIdentifier(valueParam)) || (indexParam && !t.isIdentifier(indexParam))) {
     return err({
       code: "UNSUPPORTED_SIGNAL_INITIALIZER",
-      message: "compile() only supports identifier params in Array.from() createSignal() mappers."
+      message: "compile() only supports identifier params in Array.from() signal() mappers."
     });
   }
 
@@ -549,7 +545,7 @@ function readArrayFromSource(
   if (!t.isObjectExpression(source)) {
     return err({
       code: "UNSUPPORTED_SIGNAL_INITIALIZER",
-      message: "compile() only supports Array.from() object sources with a static length in createSignal() initializers."
+      message: "compile() only supports Array.from() object sources with a static length in signal() initializers."
     });
   }
 
@@ -595,34 +591,27 @@ function readObjectKey(
 
   return err({
     code: "UNSUPPORTED_SIGNAL_INITIALIZER",
-    message: "compile() only supports identifier, string, or numeric object keys in createSignal() initializers."
+    message: "compile() only supports identifier, string, or numeric object keys in signal() initializers."
   });
 }
 
-function findRenderFunction(ast: t.File): t.FunctionDeclaration | null {
-  for (const statement of ast.program.body) {
-    if (t.isFunctionDeclaration(statement) && statement.id?.name === "render") {
-      return statement;
-    }
-
-    if (!t.isExportNamedDeclaration(statement) || !t.isFunctionDeclaration(statement.declaration)) {
-      continue;
-    }
-
-    if (statement.declaration.id?.name === "render") {
-      return statement.declaration;
-    }
-  }
-
-  return null;
-}
-
-function findRenderRoot(ast: t.File): Result<t.JSXElement, CompileToBlockIRError> {
-  const renderFunction = findRenderFunction(ast);
-  if (renderFunction === null) {
+function findRootComponent(
+  ast: t.File,
+  rootSymbol: string
+): Result<{ readonly component: RootComponentCallable; readonly root: t.JSXElement }, CompileToBlockIRError> {
+  const component = findTopLevelRootComponent(ast, rootSymbol);
+  if (component === null) {
     return err({
       code: "UNSUPPORTED_ROOT_SHAPE",
-      message: "compile() currently requires a render() function."
+      message: `compile() could not find root component ${rootSymbol}.`
+    });
+  }
+
+  const directRoot = getDirectRootJsxExpression(component);
+  if (directRoot) {
+    return ok({
+      component: component.callable,
+      root: directRoot
     });
   }
 
@@ -633,8 +622,12 @@ function findRenderRoot(ast: t.File): Result<t.JSXElement, CompileToBlockIRError
         return;
       }
 
-      const functionParent = path.findParent(parent => parent.isFunctionDeclaration());
-      if (!functionParent || functionParent.node !== renderFunction) {
+      const functionParent = path.findParent(parent =>
+        parent.isFunctionDeclaration() ||
+        parent.isFunctionExpression() ||
+        parent.isArrowFunctionExpression()
+      );
+      if (!functionParent || functionParent.node !== component.callable) {
         return;
       }
 
@@ -651,16 +644,20 @@ function findRenderRoot(ast: t.File): Result<t.JSXElement, CompileToBlockIRError
   if (root === null) {
     return err({
       code: "UNSUPPORTED_ROOT_SHAPE",
-      message: "compile() currently requires a function that returns a single JSX element."
+      message: `compile() requires root component ${rootSymbol} to return a single JSX element.`
     });
   }
 
-  return ok(root);
+  return ok({
+    component: component.callable,
+    root
+  });
 }
 
 function collectTopLevelFunctionHandlers(
   ast: t.File,
-  handlers: Readonly<Record<string, unknown>> = {}
+  handlers: Readonly<Record<string, unknown>> = {},
+  rootSymbol?: string
 ): Map<string, unknown> {
   const resolvedHandlers = new Map<string, unknown>();
   for (const [name, handler] of Object.entries(handlers)) {
@@ -677,9 +674,17 @@ function collectTopLevelFunctionHandlers(
         continue;
       }
 
+      if (statement.declaration.id.name === rootSymbol) {
+        continue;
+      }
+
       if (!resolvedHandlers.has(statement.declaration.id.name)) {
         resolvedHandlers.set(statement.declaration.id.name, statement.declaration.id.name);
       }
+      continue;
+    }
+
+    if (statement.id.name === rootSymbol) {
       continue;
     }
 
@@ -1201,7 +1206,7 @@ function compileTemplateCallback(
     initialSignalValues: [],
     jsxHostPrimitives: state.jsxHostPrimitives,
     jsxStructurePrimitives: state.jsxStructurePrimitives,
-    signalFactoryLocalNames: new Set<string>(),
+    signalLocalNames: new Set<string>(),
     staticInitializerAliases: new Map<string, unknown>(),
     structures: [],
     templateScope: {
@@ -1560,26 +1565,25 @@ function readSignalReference(
     return ok(templatePath);
   }
 
-  if (!t.isIdentifier(expression)) {
-    const getterReference = readSignalGetterReference(expression, state);
-    if (getterReference.ok) {
-      return getterReference;
-    }
+  const getterReference = readSignalGetterReference(expression, state);
+  if (getterReference.ok) {
+    return getterReference;
+  }
 
+  if (t.isCallExpression(expression)) {
+    return getterReference;
+  }
+
+  if (t.isIdentifier(expression)) {
     return err({
       code: "UNSUPPORTED_EXPRESSION",
-      message: `compile() currently only supports identifier expressions, got ${expression.type}.`
+      message: `compile() requires signal reads to use .get(), got identifier ${expression.name}.`
     });
   }
 
-  const slot = state.signalSymbols.get(expression.name);
-  if (slot !== undefined) {
-    return ok(slot);
-  }
-
   return err({
-    code: "SIGNAL_REFERENCE_MISSING",
-    message: `Signal ${expression.name} is not declared with createSignal().`
+    code: "UNSUPPORTED_EXPRESSION",
+    message: `compile() currently only supports signal.get() reads or literal expressions, got ${expression.type}.`
   });
 }
 
@@ -1590,7 +1594,7 @@ function readSignalGetterReference(
   if (!t.isCallExpression(expression) || expression.arguments.length !== 0) {
     return err({
       code: "UNSUPPORTED_EXPRESSION",
-      message: `compile() currently only supports identifier expressions, got ${expression.type}.`
+      message: `compile() currently only supports signal.get() reads or literal expressions, got ${expression.type}.`
     });
   }
 
@@ -1602,7 +1606,7 @@ function readSignalGetterReference(
   ) {
     return err({
       code: "UNSUPPORTED_EXPRESSION",
-      message: `compile() currently only supports identifier expressions, got ${expression.type}.`
+      message: `compile() currently only supports signal.get() reads or literal expressions, got ${expression.type}.`
     });
   }
 
@@ -1613,7 +1617,7 @@ function readSignalGetterReference(
 
   return err({
     code: "SIGNAL_REFERENCE_MISSING",
-    message: `Signal ${expression.callee.object.name} is not declared with createSignal().`
+    message: `Signal ${expression.callee.object.name} is not declared with signal().`
   });
 }
 

@@ -11,6 +11,16 @@
 
 ## 总体模型
 
+对外描述时，`jue` 应该先被理解成三层协作系统：
+
+1. 业务层（authoring）
+2. 编译层（compiler / lowering / backend）
+3. 运行时内核（runtime-core + host contract）
+
+这三层是“框架怎么工作”的主视角。
+
+对内实现时，再把它拆成下面这些包边界：
+
 系统分成五层：
 
 ### `packages/reactivity`
@@ -92,6 +102,125 @@
 - 内部类型
 - 开发期断言
 - 调试和性能标记
+
+## 三层职责
+
+### 一、业务层
+
+业务层的职责只有一个：
+
+- 让开发者只写宿主无关的状态和 UI 结构
+
+这里承载的是：
+
+- TSX / JSX 或未来更轻的 authoring DSL
+- `signal / memo / resource / channel`
+- `Show / List / VirtualList` 这类结构原语
+- `View / Text / Button / Input / Image / ScrollView` 这类宿主无关原语
+
+业务层明确不做：
+
+- 不直接调用 DOM API
+- 不直接调用 native view API
+- 不直接调用小程序 API
+- 不描述真实宿主节点如何创建
+- 不自己管理依赖订阅、patch 或调度
+
+业务层输出的是“语义”，不是“宿主操作”。
+
+### 二、编译层
+
+编译层的职责是把业务语义收敛成运行时和后端都能稳定消费的结构。
+
+它至少要完成四件事：
+
+1. 固化静态结构
+2. 把动态位置 lower 成 binding / region / slot
+3. 把 signal 依赖边写成显式表
+4. 按宿主后端生成不同执行产物
+
+这里最关键的一条规则是：
+
+- 编译层不把平台差异提前灌回业务层
+
+也就是说：
+
+- 不把 DOM 当成规范本体
+- 不把小程序模板语法当成 authoring 规范
+- 不把 native 控件 API 反向写回 TSX 主语义
+
+当前推荐主链应理解成：
+
+`authoring source -> BlockIR -> lowering -> backend artifact`
+
+其中 backend artifact 至少分两类：
+
+- 节点宿主：`Blueprint`
+- 模板宿主：`TargetPlan / generated assets`
+
+这里要再加一条当前已经被代码验证过的硬边界：
+
+- 模板宿主后端本身是**编译期 Node 包**
+- 真正给宿主消费的是它生成出来的 target artifact
+
+也就是说：
+
+- `@jue/web` 这种节点宿主包，同时承担 host runtime 能力
+- `@jue/skyline` 这种模板宿主包，当前首先承担的是 compile-time target generation
+- 微信小程序真正消费的是：
+  - `app.js / app.json`
+  - `pages/**/index.js / .wxml / .wxss / .json`
+  - 以及附带的 generated artifact data
+
+而不是直接在小程序运行时里加载 compiler/frontend 或 Babel 相关依赖
+
+### 三、运行时内核
+
+运行时内核的职责是执行编译产物，不是推理作者意图。
+
+它负责：
+
+- signal 值存储
+- dirty 标记
+- scheduler / lane / flush
+- binding dispatch
+- region 生命周期
+- host contract 调用顺序
+
+它明确不负责：
+
+- 运行时依赖收集
+- 通用 diff
+- 组件整棵重跑
+- 直接理解 TSX 语义
+- 直接依赖某个平台 API
+
+运行时内核只消费已经编译好的依赖表和 binding 表。
+
+## 三层工作流
+
+把三层串起来，主流程应该是：
+
+1. 业务层写宿主无关 TSX/DSL + signal
+2. 编译层提取静态结构，给动态位置分配 slot 和 binding
+3. 编译层把依赖边写成显式表
+4. 节点宿主后端生成 `Blueprint`，模板宿主后端生成 target 产物
+5. 运行时内核执行 `Blueprint` 或由 target glue 消费 target 产物
+6. signal 写入后，只命中显式声明依赖它的 binding / region
+7. 宿主适配层或 target glue 按各自平台范式完成最终 UI 更新
+
+这里最重要的协作约束是：
+
+- 业务层不碰平台
+- 编译层不做运行时推理
+- 运行时不回头理解业务语义
+- 模板宿主不强行伪装成节点宿主
+
+对模板宿主再明确一点：
+
+- compile-time target 包可以依赖 Node、parser、compiler frontend
+- 运行时 target artifact 不应该依赖 Node
+- 如果一个小程序方案要求在小程序运行时里直接 import compiler 包，那就是边界错了
 
 ## 硬规则
 

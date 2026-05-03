@@ -21,9 +21,12 @@ export interface CompiledExampleFixture extends LoadedExampleFixtureSource {
 }
 
 export function compileFixtureSource(
-  source: string
+  source: string,
+  options: { readonly rootSymbol?: string } = {}
 ): Result<{ readonly module: CompiledModule; readonly summary: CompiledModuleInspectionSummary }, FixtureError> {
-  const compiled = compileModule(source);
+  const compiled = compileModule(source, options.rootSymbol === undefined
+    ? {}
+    : { rootSymbol: options.rootSymbol });
   if (!compiled.ok) {
     return err(compiled.error);
   }
@@ -59,7 +62,9 @@ export async function compileExampleFixture(
     return loaded;
   }
 
-  const compiled = compileFixtureSource(loaded.value.source);
+  const compiled = compileFixtureSource(loaded.value.source, {
+    rootSymbol: loaded.value.example.rootSymbol
+  });
   if (!compiled.ok) {
     return compiled;
   }

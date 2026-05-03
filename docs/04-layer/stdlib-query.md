@@ -105,9 +105,11 @@ tooling 可以：
 ### 例 1：声明一个 query
 
 ```ts
+import { Lane } from "jue"
+
 const userQuery = query({
   key: ["user", userId],
-  lane: "VISIBLE_UPDATE",
+  lane: Lane.VISIBLE_UPDATE,
   load: async ([, id]) => fetchUser(id),
   staleTime: 30_000
 })
@@ -118,21 +120,25 @@ const user = userQuery.value()
 ### 例 2：通过 channel 失效 query
 
 ```ts
+import { Lane, channel, subscribe } from "jue"
+
 const userChanged = channel<{ id: string }>("userChanged")
 
 subscribe(userChanged, ({ id }) => {
-  invalidateQuery(["user", id], { lane: "VISIBLE_UPDATE" })
+  invalidateQuery(["user", id], { lane: Lane.VISIBLE_UPDATE })
 })
 ```
 
 ### 例 3：进入可见区前预取
 
 ```ts
-preloadQuery(["todos", filter], { lane: "DEFERRED" })
+import { Lane } from "jue"
+
+preloadQuery(["todos", filter], { lane: Lane.DEFERRED })
 
 const todosQuery = query({
   key: ["todos", filter],
-  lane: "VISIBLE_UPDATE",
+  lane: Lane.VISIBLE_UPDATE,
   load: async ([, currentFilter]) => fetchTodos(currentFilter)
 })
 ```
@@ -147,10 +153,10 @@ const todosQuery = query({
 
 如果某个产品需要这些，它应该建立在 query 之上，而不是塞回 query 内核。
 
-## 阶段判断
+## 实现时机判断
 
 - 所属层：Official Standard Library
-- 阶段：Phase 2
+- 当前时机：主线路径能力
 - 优先级：中高
 
 推进前提：

@@ -194,6 +194,15 @@ importers:
 
   packages/shared: {}
 
+  packages/skyline:
+    dependencies:
+      '@jue/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+      '@jue/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/stream:
     dependencies:
       '@jue/runtime-core':

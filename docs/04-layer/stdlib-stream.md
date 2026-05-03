@@ -121,28 +121,28 @@ tooling 可以：
 ### 例 1：从 signal 构造 stream，再回写 signal
 
 ```ts
-import { createSignal } from "@jue/jsx"
+import { Lane, signal } from "@jue/jsx"
 import { fromSignal, toSignal } from "@jue/stream"
 
-const count = createSignal(0)
-const label = createSignal("Count: 0")
+const count = signal(0)
+const label = signal("Count: 0")
 
-const count$ = fromSignal(count, { lane: "VISIBLE_UPDATE" })
+const count$ = fromSignal(count, { lane: Lane.VISIBLE_UPDATE })
 const stop = toSignal(
   count$.map(value => `Count: ${value}`),
   label,
-  { lane: "VISIBLE_UPDATE" }
+  { lane: Lane.VISIBLE_UPDATE }
 )
 ```
 
 ### 例 2：从 channel 构造 stream
 
 ```ts
-import { channel, subscribe } from "jue"
+import { Lane, channel, subscribe } from "jue"
 import { fromChannel } from "@jue/stream"
 
 const saveDone = channel<{ ok: boolean; id: string }>("saveDone")
-const saveDone$ = fromChannel(saveDone, { lane: "VISIBLE_UPDATE" })
+const saveDone$ = fromChannel(saveDone, { lane: Lane.VISIBLE_UPDATE })
 
 const stop = saveDone$
   .filter(message => message.ok)
@@ -154,12 +154,13 @@ const stop = saveDone$
 ### 例 3：把 stream 桥接到 resource
 
 ```ts
+import { Lane } from "jue"
 import { fromSignal, toResource } from "@jue/stream"
 
-const userId$ = fromSignal(userId, { lane: "VISIBLE_UPDATE" })
+const userId$ = fromSignal(userId, { lane: Lane.VISIBLE_UPDATE })
 
 const userResource = toResource(userId$, {
-  lane: "VISIBLE_UPDATE",
+  lane: Lane.VISIBLE_UPDATE,
   load: async id => fetchUser(id)
 })
 ```
@@ -183,13 +184,13 @@ stream.subscribe(value => {
 更合适的写法应该是显式桥接：
 
 ```ts
-toSignal(stream, someSignal, { lane: "VISIBLE_UPDATE" })
+toSignal(stream, someSignal, { lane: Lane.VISIBLE_UPDATE })
 ```
 
-## 阶段判断
+## 实现时机判断
 
 - 所属层：Official Standard Library
-- 阶段：Phase 2
+- 当前时机：主线路径能力
 - 优先级：高
 
 它应该在这些东西稳定后推进：

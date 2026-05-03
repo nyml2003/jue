@@ -107,7 +107,7 @@ tooling 可以：
 
 ```ts
 const form = createForm({
-  lane: "VISIBLE_UPDATE",
+  lane: Lane.VISIBLE_UPDATE,
   initialValues: { email: "", password: "" },
   onSubmit: async values => saveAccount(values)
 })
@@ -122,8 +122,8 @@ await form.submit()
 const formSaved = channel<{ id: string }>("formSaved")
 
 await form.submit({
-  lane: "VISIBLE_UPDATE",
-  onSuccess: value => publish(formSaved, value, { lane: "VISIBLE_UPDATE" })
+  lane: Lane.VISIBLE_UPDATE,
+  onSuccess: value => publish(formSaved, value, { lane: Lane.VISIBLE_UPDATE })
 })
 ```
 
@@ -131,13 +131,13 @@ await form.submit({
 
 ```ts
 const form = createForm({
-  lane: "VISIBLE_UPDATE",
+  lane: Lane.VISIBLE_UPDATE,
   validate: async values => ({
     email: values.email.includes("@") ? null : "invalid email"
   })
 })
 
-await form.submit({ lane: "DEFERRED" })
+await form.submit({ lane: Lane.DEFERRED })
 ```
 
 ## 明确边界
@@ -150,10 +150,10 @@ await form.submit({ lane: "DEFERRED" })
 
 它应该只负责“表单状态与流程”，不负责“表单长什么样”。
 
-## 阶段判断
+## 实现时机判断
 
 - 所属层：Official Standard Library
-- 阶段：Phase 3
+- 当前时机：后续扩面
 - 优先级：中低
 
 推进前提：

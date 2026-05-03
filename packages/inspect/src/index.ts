@@ -71,7 +71,9 @@ export async function inspectExampleApp(exampleId: string): Promise<Result<Inspe
   }
 
   const source = await readFile(example.componentPath, "utf8");
-  const compiled = compileModule(source);
+  const compiled = compileModule(source, {
+    rootSymbol: example.rootSymbol
+  });
   if (!compiled.ok) {
     return err(compiled.error);
   }

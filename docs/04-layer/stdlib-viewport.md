@@ -119,18 +119,18 @@ const viewportChanged = channel<{
   clientHeight: number
 }>("viewportChanged")
 
-const stop = observeViewport(scroller, { lane: "VISIBLE_UPDATE" }).subscribe(viewport => {
+const stop = observeViewport(scroller, { lane: Lane.VISIBLE_UPDATE }).subscribe(viewport => {
   publish(viewportChanged, {
     scrollTop: viewport.scrollTop,
     clientHeight: viewport.clientHeight
-  }, { lane: "VISIBLE_UPDATE" })
+  }, { lane: Lane.VISIBLE_UPDATE })
 })
 ```
 
 ### 例 2：进入可见区后预取
 
 ```ts
-const stop = observeVisibility(panel, { lane: "DEFERRED" }).subscribe(state => {
+const stop = observeVisibility(panel, { lane: Lane.DEFERRED }).subscribe(state => {
   if (!state.visible) {
     return
   }
@@ -142,7 +142,7 @@ const stop = observeVisibility(panel, { lane: "DEFERRED" }).subscribe(state => {
 ### 例 3：resize 影响 virtual list window
 
 ```ts
-const stop = observeResize(host, { lane: "VISIBLE_UPDATE" }).subscribe(({ width, height }) => {
+const stop = observeResize(host, { lane: Lane.VISIBLE_UPDATE }).subscribe(({ width, height }) => {
   updateVirtualListWindow(width, height)
 })
 ```
@@ -157,10 +157,10 @@ const stop = observeResize(host, { lane: "VISIBLE_UPDATE" }).subscribe(({ width,
 
 它应该只负责“观察”和“标准化结果”，不负责更高层策略。
 
-## 阶段判断
+## 实现时机判断
 
 - 所属层：Official Standard Library
-- 阶段：Phase 3
+- 当前时机：后续扩面
 - 优先级：中低
 
 推进前提：

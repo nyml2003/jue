@@ -22,10 +22,6 @@ export type JueJsxPrimitive =
   | typeof Image
   | typeof ScrollView;
 
-export function createSignal<T>(initialValue: T): T {
-  return initialValue;
-}
-
 export function signal<T>(initialValue: T): Signal<T> {
   let current = initialValue;
 

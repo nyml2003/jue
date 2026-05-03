@@ -341,15 +341,13 @@ Ecosystem 在其之上做：
 
 ## 对当前主线的影响
 
-当前 roadmap 已经改成三阶段：
-
-`Phase 1 -> Phase 2 -> Phase 3`
+当前执行不再以旧 roadmap 分阶段推进，而以 [实现方案](../01-overview/implementation-plan.md) 为准。
 
 这意味着：
 
-- 当前主线是 Phase 1，也就是先把一方系统做成
+- kernel 收口纪律继续保留
 - authoring layer 先做最小必要收口
-- official stdlib 放到 Phase 2，不抢 kernel 主线
+- official stdlib 先围绕 authoring 主路径接入推进
 - ecosystem 继续留在主线之外
 
 ### 当前阶段优先做的

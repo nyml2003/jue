@@ -4,6 +4,12 @@
 
 这份文档定义 `jue` 的作者侧 API。
 
+文档状态：
+
+- 这份文档描述的是目标 API 草案，不等于当前仓库已经正式支持的 authoring 入口和能力面
+- 当前真实可用主路径，以 `authoring-grammar-spec.md` 和 `current-status.md` 为准
+- 只要某个能力还没有通过“非调试、端到端、零业务 glue、走 authoring 主路径”的验收线，就不能把这里的草案写法视为“当前已支持”
+
 这里先锁一个关键方向：
 
 `jue` 的作者侧 API 不以 HTML 标签为规范本体。
@@ -68,12 +74,23 @@
 
 这些不是“样式系统组件”，而是宿主无关的 UI 原语。
 
+## Canonical Authoring Grammar
+
+authoring 语法的正式契约，统一以：
+
+- [Authoring Grammar 规范](./authoring-grammar-spec.md)
+
+为准。
+
+这份文档里的 grammar 相关内容，只做 API 层摘要，不再重复定义完整规则。
+
 ## 模块入口
 
 规范层入口：
 
 ```ts
 import {
+  Lane,
   signal,
   memo,
   batch,
@@ -213,7 +230,7 @@ batch(() => {
 ```ts
 const userResource = resource({
   key: [userId],
-  lane: "VISIBLE_UPDATE",
+  lane: Lane.VISIBLE_UPDATE,
   load: async ([id]) => fetchUser(id.get()),
 })
 ```
@@ -230,7 +247,7 @@ userResource.reload()
 约束：
 
 - `key` 决定失效边界
-- `lane` 决定提交优先级
+- `lane` 决定提交优先级，作者侧优先使用 `Lane.VISIBLE_UPDATE` 这类枚举值
 - 返回结果进入 scheduler，不直接写宿主
 
 ## Result 语义
@@ -278,7 +295,7 @@ const saveDone = channel<{ id: string; ok: boolean }>("saveDone")
 草案：
 
 ```ts
-publish(saveDone, { id, ok: true }, { lane: "DEFERRED" })
+publish(saveDone, { id, ok: true }, { lane: Lane.DEFERRED })
 ```
 
 ### `subscribe`
@@ -309,14 +326,14 @@ subscribe(saveDone, message => {
 草案：
 
 ```ts
-mount(() => <App />, root)
+mount(App, root)
 ```
 
 可选项：
 
 ```ts
-mount(() => <App />, root, {
-  lane: "VISIBLE_UPDATE",
+mount(App, root, {
+  lane: Lane.VISIBLE_UPDATE,
 })
 ```
 
@@ -325,6 +342,7 @@ mount(() => <App />, root, {
 - `root` 的具体类型由宿主 adapter 决定
 - Web 是 DOM 容器
 - Native 是原生容器句柄
+- 挂载哪个组件符号由调用方显式决定，不靠固定导出名
 
 ### `onMount`
 
@@ -409,7 +427,7 @@ onDispose(() => {
 <VirtualList
   each={rows.get()}
   by={row => row.id}
-  estimateSize={row => 44}
+  estimateSize={44}
   overscan={8}
 >
   {row => <Row item={row} />}
@@ -479,7 +497,8 @@ onDispose(() => {
 - `gap?`
 - `align?`
 - `justify?`
-- `onClick?` 或宿主等价事件
+- `onPress?`
+- `onScroll?`
 
 注意：
 
@@ -507,7 +526,7 @@ onDispose(() => {
 草案：
 
 ```tsx
-<Button onPress={() => save()}>
+<Button onPress={save}>
   <Text>Save</Text>
 </Button>
 ```
@@ -516,6 +535,7 @@ onDispose(() => {
 
 - 事件名优先走跨宿主语义，如 `onPress`
 - Web adapter 可以把它映射到 `click`
+- v1 grammar 更推荐写成命名函数引用：`onPress={save}`
 
 ### `Input`
 
@@ -526,9 +546,13 @@ onDispose(() => {
 草案：
 
 ```tsx
+function handleNameInput(event: { value?: string }) {
+  name.set(event.value ?? "")
+}
+
 <Input
   value={name.get()}
-  onInput={value => name.set(value)}
+  onInput={handleNameInput}
   placeholder="name"
 />
 ```
@@ -623,7 +647,7 @@ const doubled = memo([count], count => count * 2)
 ```
 
 ```tsx
-<VirtualList each={rows.get()} by={row => row.id} estimateSize={() => 40}>
+<VirtualList each={rows.get()} by={row => row.id} estimateSize={40}>
   {row => <Row item={row} />}
 </VirtualList>
 ```
@@ -631,8 +655,8 @@ const doubled = memo([count], count => count * 2)
 ### 推荐 3：跨边界通信只走 channel
 
 ```ts
-const closeDialog = channel<void>("closeDialog")
-publish(closeDialog, undefined, { lane: "VISIBLE_UPDATE" })
+const closeDialog = channel<{ kind: "close" }>("closeDialog")
+publish(closeDialog, { kind: "close" }, { lane: Lane.VISIBLE_UPDATE })
 ```
 
 ### 推荐 4：异步只走 resource
@@ -640,7 +664,7 @@ publish(closeDialog, undefined, { lane: "VISIBLE_UPDATE" })
 ```ts
 const todosResource = resource({
   key: [filter],
-  lane: "VISIBLE_UPDATE",
+  lane: Lane.VISIBLE_UPDATE,
   load: async ([filter]) => fetchTodos(filter.get()),
 })
 ```
@@ -702,6 +726,7 @@ fetchUser(id).then(user => {
 
 ```tsx
 import {
+  Lane,
   signal,
   memo,
   resource,
@@ -717,15 +742,19 @@ function App() {
   const count = signal(0)
   const total = memo([count], count => count * 2)
 
+  function increment() {
+    count.update(v => v + 1)
+  }
+
   const todos = resource({
     key: [count],
-    lane: "VISIBLE_UPDATE",
+    lane: Lane.VISIBLE_UPDATE,
     load: async () => fetchTodos(),
   })
 
   return (
     <View direction="column" gap={12}>
-      <Button onPress={() => count.update(v => v + 1)}>
+      <Button onPress={increment}>
         <Text>+</Text>
       </Button>
 
@@ -741,7 +770,7 @@ function App() {
   )
 }
 
-mount(() => <App />, root)
+mount(App, root)
 ```
 
 ## 待定问题
@@ -750,6 +779,6 @@ mount(() => <App />, root)
 
 1. 宿主原语的最小集合是否还要更小
 2. `Button` 是否保留 children 形式，还是改成 `label`
-3. `Input` 的事件名是否统一成 `onInput` 或 `onChangeText`
+3. `Input` 的 payload 形式是否统一成跨宿主最小事件对象，还是保留更便捷的值直传写法
 4. `Portal` 和 `Boundary` 是否进入第一版实现
 5. Web 兼容层是否提供 HTML 标签直写模式

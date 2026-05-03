@@ -5,6 +5,16 @@ import { lowerBlockIRToBlueprint } from "../block-ir";
 import { compileSourceToBlockIR } from "./compile-to-block-ir";
 
 export {
+  compileSourceToBlockIR,
+  type CompileSourceToBlockIROptions,
+  type CompileToBlockIRResult,
+  type CompileToBlockIRError,
+  type CompiledKeyedListDescriptor,
+  type CompiledTemplateDescriptor,
+  type CompiledVirtualListDescriptor
+} from "./compile-to-block-ir";
+
+export {
   compileModule,
   type CompiledModule,
   type SerializedBlueprint,
@@ -16,6 +26,7 @@ export {
 export interface CompileOptions {
   readonly filename?: string;
   readonly handlers?: Readonly<Record<string, unknown>>;
+  readonly rootSymbol?: string;
 }
 
 export interface CompileError {
@@ -24,9 +35,10 @@ export interface CompileError {
 }
 
 export function compile(source: string, options: CompileOptions = {}): Result<Blueprint, CompileError> {
-  const block = compileSourceToBlockIR(source, options.handlers === undefined
-    ? {}
-    : { handlers: options.handlers });
+  const block = compileSourceToBlockIR(source, {
+    ...(options.handlers === undefined ? {} : { handlers: options.handlers }),
+    ...(options.rootSymbol === undefined ? {} : { rootSymbol: options.rootSymbol })
+  });
   if (!block.ok) {
     return err(block.error);
   }
