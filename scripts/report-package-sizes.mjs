@@ -4,15 +4,12 @@ import { fileURLToPath } from "node:url";
 import { join, relative } from "node:path";
 
 const packagesRoot = fileURLToPath(new URL("../packages/", import.meta.url));
-const packageNames = readdirSync(packagesRoot, { withFileTypes: true })
-  .filter(entry => entry.isDirectory())
-  .map(entry => entry.name)
-  .sort();
+const packageRoots = collectPackageRoots(packagesRoot).sort();
 
 const rows = [];
 
-for (const packageName of packageNames) {
-  const packageRoot = join(packagesRoot, packageName);
+for (const packageRoot of packageRoots) {
+  const packageName = relative(packagesRoot, packageRoot).replaceAll("\\", "/");
   const distRoot = join(packageRoot, "dist");
 
   let files = [];
@@ -50,6 +47,27 @@ console.log("");
 printJsTotals(rows);
 console.log("");
 printLargestEntrypoints(rows);
+
+function collectPackageRoots(root) {
+  const roots = [];
+
+  for (const groupEntry of readdirSync(root, { withFileTypes: true })) {
+    if (!groupEntry.isDirectory()) {
+      continue;
+    }
+
+    const groupPath = join(root, groupEntry.name);
+    for (const packageEntry of readdirSync(groupPath, { withFileTypes: true })) {
+      if (!packageEntry.isDirectory()) {
+        continue;
+      }
+
+      roots.push(join(groupPath, packageEntry.name));
+    }
+  }
+
+  return roots;
+}
 
 function collectFiles(directory) {
   const files = [];

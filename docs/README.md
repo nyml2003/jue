@@ -1,65 +1,47 @@
 # docs
 
-当前文档按三层结构组织：
+这套文档按“先定方向，再看现状，再看实施计划，最后再下钻规格和边界”的顺序组织。
 
-- `01-overview`
-  - 讲项目是什么、现在的真实实现状态、接下来怎么收口
-- `02-core-specs`
-  - 讲 runtime / compiler / IR / host / scheduler 的核心契约
-- `03-engineering`
-  - 讲代码规范和工程工具链
-- `04-layer`
-  - 讲 `jue` kernel、official layers、ecosystem 的世界边界
+## 阅读主线
 
-建议阅读顺序：
+1. [长期目标](./01-long-term-goal/01-goal.md)
+2. [架构设计](./01-long-term-goal/02-architecture.md)
+3. [当前现状](./02-current-status/01-current-status.md)
+4. [支持矩阵](./02-current-status/02-support-matrix.md)
+5. [实施计划](./03-implementation-plan/01-implementation-plan.md)
+6. [规格索引](./10-specs/README.md)
+7. [Monorepo 拓扑](./30-engineering/04-monorepo-topology-spec.md)
 
-1. `01-overview/current-status.md`
-2. `01-overview/architecture.md`
-3. `01-overview/implementation-plan.md`
-4. `02-core-specs/authoring-grammar-spec.md`
-5. `02-core-specs/*`
-6. `03-engineering/*`
-7. `04-layer/*`
+如果你关心小程序 / Skyline 线，再补读：
 
-当前如果你关心小程序 / Skyline 线，建议再补读：
+8. [小程序 Target 策略](./20-boundaries/03-miniprogram-target-strategy.md)
+9. [jue-mobile-showcase](../packages/examples/jue-mobile-showcase/README.md)
 
-8. `04-layer/miniprogram-target-strategy.md`
-9. `../examples/mobile/jue-mobile-showcase/README.md`
+## 按主题查阅
 
-## 01 Overview
+### 01 Long-Term Goal
 
-- [架构设计](./01-overview/architecture.md)
-- [当前现状](./01-overview/current-status.md)
-- [实现方案](./01-overview/implementation-plan.md)
+- [长期目标](./01-long-term-goal/01-goal.md)
+- [架构设计](./01-long-term-goal/02-architecture.md)
 
-## 02 Core Specs
+### 02 Current Status
 
-- [Authoring Grammar 规范](./02-core-specs/authoring-grammar-spec.md)
-- [运行时模型](./02-core-specs/runtime-model.md)
-- [编译策略](./02-core-specs/compiler-strategy.md)
-- [IR 规范](./02-core-specs/ir-spec.md)
-- [API 草案](./02-core-specs/api-draft.md)
-- [宿主适配规范](./02-core-specs/host-adapter-spec.md)
-- [Scheduler 规范](./02-core-specs/scheduler-spec.md)
-- [Region 状态机](./02-core-specs/region-state-machine.md)
-- [场景适配](./02-core-specs/scenario-coverage.md)
+- [当前现状](./02-current-status/01-current-status.md)
+- [支持矩阵](./02-current-status/02-support-matrix.md)
 
-## 03 Engineering
+### 03 Implementation Plan
 
-- [代码规范](./03-engineering/code-style-spec.md)
-- [风格 DNA](./03-engineering/style-dna.md)
-- [工程与工具链规范](./03-engineering/engineering-toolchain-spec.md)
+- [实施计划](./03-implementation-plan/01-implementation-plan.md)
 
-## 04 Layer
+### 10 Specs
 
-- [开发世界边界](./04-layer/layer-model.md)
-- [包规划图](./04-layer/package-map.md)
-- [小程序 Target 策略](./04-layer/miniprogram-target-strategy.md)
-- [支持矩阵](./04-layer/phase-2-package-matrix.md)
-- [`@jue/stream` 边界](./04-layer/stdlib-stream.md)
-- [`@jue/router` 边界](./04-layer/stdlib-router.md)
-- [`@jue/query` 边界](./04-layer/stdlib-query.md)
-- [`@jue/form` 边界](./04-layer/stdlib-form.md)
-- [`@jue/animation` 边界](./04-layer/stdlib-animation.md)
-- [`@jue/gesture` 边界](./04-layer/stdlib-gesture.md)
-- [`@jue/viewport` 边界](./04-layer/stdlib-viewport.md)
+- [规格索引](./10-specs/README.md)
+
+### 20 Boundaries
+
+- [边界索引](./20-boundaries/README.md)
+
+### 30 Engineering
+
+- [工程索引](./30-engineering/README.md)
+- [Monorepo 拓扑](./30-engineering/04-monorepo-topology-spec.md)

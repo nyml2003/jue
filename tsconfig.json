@@ -2,22 +2,22 @@
   "files": [],
   "references": [
     {
-      "path": "./packages/shared"
+      "path": "./packages/kernel/shared"
     },
     {
-      "path": "./packages/runtime-core"
+      "path": "./packages/kernel/runtime-core"
     },
     {
-      "path": "./packages/compiler"
+      "path": "./packages/kernel/compiler"
     },
     {
-      "path": "./packages/web"
+      "path": "./packages/host/web"
     },
     {
-      "path": "./packages/native"
+      "path": "./packages/host/native"
     },
     {
-      "path": "./examples/web-playground"
+      "path": "./packages/examples/web-playground"
     }
   ]
 }

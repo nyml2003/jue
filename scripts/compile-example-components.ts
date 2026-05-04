@@ -2,16 +2,16 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { listExampleApps } from "../packages/examples/src/index";
+import { listExampleApps } from "../packages/tooling/examples/src/index";
 import { tsImport } from "tsx/esm/api";
-import type { compileModule as compileModuleFn } from "../packages/compiler/src/frontend/index";
+import type { compileModule as compileModuleFn } from "../packages/kernel/compiler/src/frontend/index";
 
 type CompilerModule = {
   readonly compileModule: typeof compileModuleFn;
 };
 
 async function main() {
-  const compilerPath = fileURLToPath(new URL("../packages/compiler/src/frontend/index.ts", import.meta.url));
+  const compilerPath = fileURLToPath(new URL("../packages/kernel/compiler/src/frontend/index.ts", import.meta.url));
   const compilerUrl = pathToFileURL(compilerPath).href;
   const { compileModule } = await tsImport(compilerUrl, import.meta.url) as CompilerModule;
   const examples = await listExampleApps();

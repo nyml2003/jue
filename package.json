@@ -3,9 +3,11 @@
   "private": true,
   "packageManager": "pnpm@10.10.0",
   "scripts": {
-    "build": "pnpm -r --filter \"./packages/*\" run build && pnpm build:examples",
+    "build": "pnpm -r --filter \"./packages/*/*\" run build && pnpm build:examples",
     "compile:components": "pnpm exec tsx ./scripts/compile-example-components.ts",
     "build:examples": "pnpm --filter @jue/web-playground build",
+    "topology:check": "node ./scripts/monorepo-topology.mjs check",
+    "topology:report": "node ./scripts/monorepo-topology.mjs report",
     "size:packages": "pnpm build && node ./scripts/report-package-sizes.mjs",
     "typecheck": "pnpm exec tsc -p tsconfig.check.json --noEmit --pretty false",
     "lint": "eslint .",
@@ -15,7 +17,7 @@
     "test:e2e": "pnpm --filter @jue/web-playground test:e2e",
     "dev": "pnpm --filter @jue/web-playground preview",
     "bench": "pnpm --filter @jue/bench bench",
-    "docs:phase2": "pnpm --filter @jue/docsgen docsgen"
+    "docs:status": "pnpm --filter @jue/docsgen docsgen"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",

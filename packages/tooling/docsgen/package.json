@@ -1,0 +1,28 @@
+{
+  "name": "@jue/docsgen",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "import": "./dist/cli.js"
+    }
+  },
+  "dependencies": {
+    "@jue/authoring-check": "workspace:*",
+    "@jue/examples": "workspace:*",
+    "@jue/primitives": "workspace:*",
+    "@jue/testkit": "workspace:*"
+  },
+  "scripts": {
+    "docsgen": "pnpm exec tsx ./src/cli.ts",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('../../../node_modules/.cache/jue/docsgen',{recursive:true,force:true})\" && esbuild src/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/authoring-check --external:@jue/examples --external:@jue/primitives --external:@jue/testkit --outfile=dist/index.js --sourcemap && esbuild src/cli.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/authoring-check --external:@jue/examples --external:@jue/primitives --external:@jue/testkit --outfile=dist/cli.js --sourcemap && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}

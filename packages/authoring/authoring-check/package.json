@@ -1,0 +1,21 @@
+{
+  "name": "@jue/authoring-check",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@jue/compiler": "workspace:*",
+    "@jue/primitives": "workspace:*"
+  },
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('../../../node_modules/.cache/jue/authoring-check',{recursive:true,force:true})\" && esbuild src/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/compiler --external:@jue/primitives --outfile=dist/index.js --sourcemap && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}

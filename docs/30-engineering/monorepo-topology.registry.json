@@ -1,0 +1,313 @@
+{
+  "containers": [
+    {
+      "packageId": "@jue/shared",
+      "path": "packages/kernel/shared",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "@jue/shared",
+          "entry": ".",
+          "layer": "kernel",
+          "role": "shared-kernel-definitions"
+        }
+      ]
+    },
+    {
+      "packageId": "@jue/runtime-core",
+      "path": "packages/kernel/runtime-core",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "@jue/runtime-core",
+          "entry": ".",
+          "layer": "kernel",
+          "role": "runtime-execution-core"
+        },
+        {
+          "id": "@jue/runtime-core/reactivity",
+          "entry": "./reactivity",
+          "layer": "kernel",
+          "role": "reactivity-boundary"
+        },
+        {
+          "id": "@jue/runtime-core/channel",
+          "entry": "./channel",
+          "layer": "kernel",
+          "role": "channel-boundary"
+        },
+        {
+          "id": "@jue/runtime-core/host-contract",
+          "entry": "./host-contract",
+          "layer": "kernel",
+          "role": "host-contract-boundary"
+        }
+      ]
+    },
+    {
+      "packageId": "@jue/compiler",
+      "path": "packages/kernel/compiler",
+      "containerKind": "composite",
+      "disclosureUnits": [
+        {
+          "id": "@jue/compiler/ir",
+          "entry": "./ir",
+          "layer": "kernel",
+          "role": "compiler-ir"
+        },
+        {
+          "id": "@jue/compiler/lowering",
+          "entry": "./lowering",
+          "layer": "kernel",
+          "role": "compiler-lowering"
+        },
+        {
+          "id": "@jue/compiler/frontend",
+          "entry": "./frontend",
+          "layer": "official-authoring",
+          "role": "tsx-frontend"
+        },
+        {
+          "id": "@jue/compiler/builder",
+          "entry": "./builder",
+          "layer": "official-authoring",
+          "role": "builder-fixture-entry"
+        }
+      ]
+    },
+    {
+      "packageId": "@jue/jsx",
+      "path": "packages/authoring/jsx",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "@jue/jsx",
+          "entry": ".",
+          "layer": "official-authoring",
+          "role": "jsx-entry"
+        }
+      ]
+    },
+    {
+      "packageId": "@jue/primitives",
+      "path": "packages/authoring/primitives",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "@jue/primitives",
+          "entry": ".",
+          "layer": "official-authoring",
+          "role": "structural-primitives"
+        }
+      ]
+    },
+    {
+      "packageId": "@jue/authoring-check",
+      "path": "packages/authoring/authoring-check",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "@jue/authoring-check",
+          "entry": ".",
+          "layer": "official-authoring",
+          "role": "authoring-diagnostics"
+        }
+      ]
+    },
+    {
+      "packageId": "@jue/web",
+      "path": "packages/host/web",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "@jue/web",
+          "entry": ".",
+          "layer": "official-host",
+          "role": "web-host"
+        }
+      ]
+    },
+    {
+      "packageId": "@jue/native",
+      "path": "packages/host/native",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "@jue/native",
+          "entry": ".",
+          "layer": "official-host",
+          "role": "native-host-placeholder"
+        }
+      ]
+    },
+    {
+      "packageId": "@jue/skyline",
+      "path": "packages/host-target/skyline",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "@jue/skyline",
+          "entry": ".",
+          "layer": "official-host-target",
+          "role": "skyline-target"
+        }
+      ]
+    },
+    {
+      "packageId": "@jue/stream",
+      "path": "packages/stdlib/stream",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "@jue/stream",
+          "entry": ".",
+          "layer": "official-stdlib",
+          "role": "stream-stdlib"
+        }
+      ]
+    },
+    {
+      "packageId": "@jue/router",
+      "path": "packages/stdlib/router",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "@jue/router",
+          "entry": ".",
+          "layer": "official-stdlib",
+          "role": "router-stdlib"
+        }
+      ]
+    },
+    {
+      "packageId": "@jue/query",
+      "path": "packages/stdlib/query",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "@jue/query",
+          "entry": ".",
+          "layer": "official-stdlib",
+          "role": "query-stdlib"
+        }
+      ]
+    },
+    {
+      "packageId": "@jue/devtrace",
+      "path": "packages/tooling/devtrace",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "@jue/devtrace",
+          "entry": ".",
+          "layer": "official-tooling",
+          "role": "trace-tooling"
+        }
+      ]
+    },
+    {
+      "packageId": "@jue/docsgen",
+      "path": "packages/tooling/docsgen",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "@jue/docsgen",
+          "entry": ".",
+          "layer": "official-tooling",
+          "role": "docsgen-tooling"
+        }
+      ]
+    },
+    {
+      "packageId": "@jue/examples",
+      "path": "packages/tooling/examples",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "@jue/examples",
+          "entry": ".",
+          "layer": "official-tooling",
+          "role": "example-registry-tooling"
+        }
+      ]
+    },
+    {
+      "packageId": "@jue/inspect",
+      "path": "packages/tooling/inspect",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "@jue/inspect",
+          "entry": ".",
+          "layer": "official-tooling",
+          "role": "inspect-tooling"
+        }
+      ]
+    },
+    {
+      "packageId": "@jue/testkit",
+      "path": "packages/tooling/testkit",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "@jue/testkit",
+          "entry": ".",
+          "layer": "official-tooling",
+          "role": "testkit-tooling"
+        }
+      ]
+    },
+    {
+      "packageId": "@jue/bench",
+      "path": "packages/tooling/bench",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "@jue/bench",
+          "entry": ".",
+          "layer": "official-tooling",
+          "role": "benchmark-tooling"
+        }
+      ]
+    },
+    {
+      "packageId": "@jue/web-playground",
+      "path": "packages/examples/web-playground",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "@jue/web-playground",
+          "entry": ".",
+          "layer": "example-packages",
+          "role": "web-playground-example"
+        }
+      ]
+    },
+    {
+      "packageId": "jue-mobile-showcase",
+      "path": "packages/examples/jue-mobile-showcase",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "jue-mobile-showcase",
+          "entry": ".",
+          "layer": "example-packages",
+          "role": "mobile-showcase-example"
+        }
+      ]
+    },
+    {
+      "packageId": "jue-current-app",
+      "path": "packages/examples/jue-current-app",
+      "containerKind": "pure",
+      "disclosureUnits": [
+        {
+          "id": "jue-current-app",
+          "entry": ".",
+          "layer": "example-packages",
+          "role": "isolated-current-app-example"
+        }
+      ]
+    }
+  ]
+}

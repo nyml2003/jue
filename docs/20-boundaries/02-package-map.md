@@ -1,0 +1,440 @@
+# 包规划图
+
+## 目标
+
+这份文档把 `jue` 的“开发世界边界”进一步落到具体包。
+
+不是只说：
+
+- kernel
+- official layers
+- ecosystem
+
+而是直接回答：
+
+- 现在仓库里已经有哪些包
+- 以后还应该补哪些一方包
+- 哪些包必须先做
+- 哪些包可以后做
+- 哪些不应该被放进 `jue` 本体
+
+## 总体原则
+
+包规划遵守三条规则：
+
+1. 先围绕 kernel 收口，不让上层策略抢主线。
+2. 先补 `jue` 独有价值的包，不重写通用基础设施。
+3. 每个包都必须能回答“它定义不变量，还是只提供策略和体验”。
+
+## 当前已存在的包
+
+先加一条阅读约束：
+
+- 这里的“包”首先回答职责边界
+- 如果某个 package 同时公开多个层级入口，monorepo 下的正式分层披露以 [Monorepo 拓扑](../30-engineering/04-monorepo-topology-spec.md) 为准
+- 当前最典型的 composite package container 是 `@jue/compiler`
+
+当前仓库已经有这些工作区包：
+
+| 包名 | 当前状态 | 所属层 | 说明 |
+| --- | --- | --- | --- |
+| `@jue/shared` | 已有 | Kernel | opcode、类型、Result、宿主常量等共享定义 |
+| `@jue/runtime-core` | 已有 | Kernel | Blueprint、scheduler、binding dispatch、region/resource/signal state |
+| `@jue/compiler` | 已有 | Composite Package Container | 物理 package 同时承载 kernel 后端与 authoring 入口；层图里应下钻到 `./ir`、`./lowering`、`./frontend`、`./builder` |
+| `@jue/jsx` | 已有 | Official Authoring Layer | JSX 输入面与宿主无关原语入口 |
+| `@jue/primitives` | 已有 | Official Authoring Layer | 官方结构原语与支持矩阵 |
+| `@jue/authoring-check` | 已有 | Official Authoring Layer | 作者侧诊断与支持矩阵入口 |
+| `@jue/web` | 已有 | Official Host Layer | Web host adapter 与挂载实现 |
+| `@jue/examples` | 已有 | Official Tooling Layer | example registry、compile/build 统一入口 |
+| `@jue/inspect` | 已有 | Official Tooling Layer | compiled module / blueprint summary 与 example inspection |
+| `@jue/testkit` | 已有 | Official Tooling Layer | fixture source / compile helper / batch fixture compile |
+| `@jue/bench` | 已有 | Official Tooling Layer | example compilation benchmark 与 root `pnpm bench` 入口 |
+| `@jue/stream` | 已有 | Official Standard Library | signal/channel/resource 桥接与基础 stream operator |
+| `@jue/router` | 已有 | Official Standard Library | route state、history bridge、explicit route handoff |
+| `@jue/query` | 已有 | Official Standard Library | resource 之上的最小 cache / stale / invalidate / preload 层 |
+| `@jue/devtrace` | 已有 | Official Tooling Layer | signal/channel/resource/lane/dirty/flush/region trace collector |
+| `@jue/docsgen` | 已有 | Official Tooling Layer | 从 specs / examples / fixtures 生成文档片段与矩阵 |
+| `@jue/native` | 占位 | Official Host Layer | 先占边界，当前不是主线 |
+| `@jue/skyline` | 已存在（最小 compile-time target） | Official Host Target Layer | 面向 `Skyline + glass-easel` 的小程序 target，当前首先是 Node 侧 compile-time backend，生成模板 / data artifact |
+
+## 开发世界的包层次
+
+下面的包层次是建议的一方完整版图。
+
+当前阅读重点不是历史阶段，而是这些包分别定义什么不变量、提供什么官方能力、哪些还只是占位边界。
+
+如果你关心“同一个 monorepo 里这些 package 该怎么被稳定看清”，补读：
+
+- [Monorepo 拓扑](../30-engineering/04-monorepo-topology-spec.md)
+
+当前真实执行顺序，以 [实现方案](../03-implementation-plan/01-implementation-plan.md) 为准。
+
+## 一、Kernel 包
+
+这些包定义全系统不变量。
+
+### `@jue/shared`
+
+- 层级：Kernel
+- 当前状态：已存在
+- 职责：
+  - `Result`
+  - opcode / lane / host primitive / event key
+  - 共享类型
+  - 开发期断言
+- 备注：
+  - 继续保持薄，不要偷偷长出状态机逻辑
+
+### `@jue/reactivity`
+
+- 层级：Kernel
+- 当前状态：已先以 `@jue/runtime-core/reactivity` 子路径明确边界，后续再决定是否独立包
+- 职责：
+  - signal state
+  - memo
+  - batch
+  - disposal
+- 禁止：
+  - 隐式依赖收集
+  - DOM/host 逻辑
+
+### `@jue/runtime-core`
+
+- 层级：Kernel
+- 当前状态：已存在
+- 职责：
+  - `Blueprint`
+  - `BlockInstance`
+  - dirty bits
+  - binding dispatch
+  - scheduler / lane / flush
+  - region state machine
+  - channel queue
+  - resource state
+- 备注：
+  - 继续保持“只消费 Blueprint，不反向理解 authoring 语义”
+
+### `@jue/compiler-ir`
+
+- 层级：Kernel
+- 当前状态：已先以 `@jue/compiler/ir` 子路径明确边界，后续再决定是否独立包
+- 职责：
+  - `BlockIR`
+  - IR node / binding / region / channel / resource 定义
+- 备注：
+  - 这是长期后端语义层，必须稳定
+
+### `@jue/compiler-lowering`
+
+- 层级：Kernel
+- 当前状态：已先以 `@jue/compiler/lowering` 子路径明确边界，后续再决定是否独立包
+- 职责：
+  - `BlockIR -> Blueprint`
+  - slot 分配
+  - typed array 布局
+  - `signalToBindings`
+  - 参数区压平
+
+### `@jue/host-contract`
+
+- 层级：Kernel
+- 当前状态：已先以 `@jue/runtime-core/host-contract` 子路径明确边界，不急着独立包
+- 职责：
+  - host adapter interface
+  - mount / patch / event bridge contract
+- 备注：
+  - 这层必须稳定，但不一定需要马上拆包
+
+## 二、Authoring 包
+
+这些包属于 `jue`，但不定义 kernel 不变量。
+
+### `@jue/jsx-runtime`
+
+- 层级：Official Authoring Layer
+- 当前状态：可由 `@jue/jsx` 演进或拆分
+- 职责：
+  - JSX runtime
+  - authoring primitive 映射
+
+### `@jue/compiler-frontend`
+
+- 层级：Official Authoring Layer
+- 当前状态：当前已经以 `@jue/compiler/frontend` 子路径存在，并已作为稳定公开边界使用
+- 职责：
+  - TSX / JSX parser
+  - source -> BlockIR
+  - 错误模型
+  - support boundary 收口
+- 备注：
+  - 现在不一定要拆成独立包，但文档上应把它当独立能力边界
+  - monorepo 层图里，它作为 `@jue/compiler` 的 disclosure unit 进入 Official Authoring
+
+### `@jue/builder`
+
+- 层级：Official Authoring Layer
+- 当前状态：当前 builder 逻辑在 `@jue/compiler` 内，并已以 `@jue/compiler/builder` 子路径明确边界
+- 职责：
+  - 手写 builder
+  - fixture DSL
+  - 让 tests / examples / compiler 共用同一 authoring 语义层
+- 备注：
+  - monorepo 层图里，它作为 `@jue/compiler` 的 disclosure unit 进入 Official Authoring
+
+### `@jue/primitives`
+
+- 层级：Official Authoring Layer
+- 当前状态：已存在
+- 职责：
+  - `Show`
+  - `List`
+  - `VirtualList`
+  - `Portal`
+  - `Boundary`
+- 备注：
+  - 当前优先验收目标仍是 `Show / List / VirtualList`
+  - `Portal / Boundary` 目前只是保留原语边界，还不能按当前支持口径写成“已支持”
+  - 先保证这些原语在 frontend/IR/runtime 三端语义一致，再谈更复杂 authoring
+
+### `@jue/authoring-check`
+
+- 层级：Official Authoring Layer
+- 当前状态：已存在
+- 职责：
+  - 静态诊断
+  - unsupported pattern 报错
+  - feature support matrix
+- 备注：
+  - 这是 compiler error model 外层的“作者体验层”
+
+## 三、Host 包
+
+### `@jue/web`
+
+- 层级：Official Host Layer
+- 当前状态：已存在
+- 职责：
+  - Web host primitives
+  - DOM mount / patch / event bridge
+  - keyed / virtual list controller
+
+### `@jue/native`
+
+- 层级：Official Host Layer
+- 当前状态：占位
+- 职责：
+  - Native host 映射
+- 备注：
+  - 当前文档已明确原生渲染目标不在早期主线
+
+### `@jue/skyline`
+
+- 层级：Official Host Target Layer
+- 当前状态：已存在（最小可用）
+- 职责：
+  - 微信小程序 `Skyline + glass-easel` target
+  - `WXML / WXSS / page-or-component JS/JSON` 生成
+  - signal -> binding -> `setData path` lowering
+  - 小程序事件与 methods bridge
+- 备注：
+  - 这不是当前 `HostAdapter` 的简单变体
+  - 默认走模板宿主路线，不直接复用 DOM-style mount tree
+  - 它和 `@jue/native` 共享 authoring / IR / dependency graph，但不是同一种后端
+  - 当前首先是 compile-time 包，不是小程序运行时包
+  - 当前已落地最小 artifact lowering 和 `packages/examples/jue-mobile-showcase` 示例
+
+### `@jue/web-html`
+
+- 层级：Official Host Convenience Layer
+- 当前状态：未开始
+- 职责：
+  - 纯 Web convenience layer
+  - HTML tag 兼容入口
+- 备注：
+  - 它只能是便利层，不能反向定义主规范
+
+## 四、Stdlib 包
+
+这些包属于 `jue` 官方能力层，但不该进入 kernel。
+
+### `@jue/stream`
+
+- 层级：Official Standard Library
+- 当前状态：已存在
+- 职责：
+  - stream core
+  - `toSignal`
+  - `fromSignal`
+  - `fromChannel`
+  - `toChannel`
+  - `toResource`
+- 备注：
+  - 它应该是 scheduler-aware stream，不是第二套隐式响应式系统
+
+### `@jue/router`
+
+- 层级：Official Standard Library
+- 当前状态：已存在
+- 职责：
+  - route state
+  - history bridge
+  - params / query model
+  - route -> region / block 边界
+
+### `@jue/query`
+
+- 层级：Official Standard Library
+- 当前状态：已存在
+- 职责：
+  - resource helper
+  - cache / invalidation
+  - retry / preload / stale policy
+
+### `@jue/form`
+
+- 层级：Official Standard Library
+- 职责：
+  - field state
+  - validation
+  - submit lifecycle
+  - dirty / touched / error model
+
+### `@jue/animation`
+
+- 层级：Official Standard Library
+- 职责：
+  - transition
+  - motion scheduling
+  - region enter/leave timing
+
+### `@jue/gesture`
+
+- 层级：Official Standard Library
+- 职责：
+  - pointer / drag / scroll gesture bridge
+
+### `@jue/viewport`
+
+- 层级：Official Standard Library
+- 职责：
+  - viewport observer
+  - focus / visibility / resize / intersection helpers
+
+## 五、Tooling 包
+
+这些包不定义运行时语义，但会决定 `jue` 是否真的可开发。
+
+### `@jue/inspect`
+
+- 层级：Official Tooling Layer
+- 当前状态：已存在
+- 职责：
+  - source -> BlockIR -> Blueprint 可视化
+  - slot / typed array / region descriptor 检查
+
+### `@jue/devtrace`
+
+- 层级：Official Tooling Layer
+- 当前状态：已存在
+- 职责：
+  - signal write
+  - lane
+  - dirty
+  - flush
+  - region lifecycle trace
+
+### `@jue/bench`
+
+- 层级：Official Tooling Layer
+- 当前状态：已存在
+- 职责：
+  - operation count
+  - naive baseline compare
+  - V8/profile artifact
+  - list / virtual list / scheduler benchmark
+
+### `@jue/testkit`
+
+- 层级：Official Tooling Layer
+- 当前状态：已存在
+- 职责：
+  - compiler fixture runner
+  - runtime harness
+  - host mock
+  - region assertion helpers
+
+### `@jue/examples`
+
+- 层级：Official Tooling Layer
+- 当前状态：已存在
+- 职责：
+  - example registry
+  - compile-all
+  - run-all
+  - feature coverage map
+
+### `@jue/docsgen`
+
+- 层级：Official Tooling Layer
+- 当前状态：已存在
+- 职责：
+  - 从 specs / examples / fixtures 生成文档片段和支持矩阵
+
+### `@jue/language-tools`
+
+- 层级：Official Tooling Layer
+- 职责：
+  - diagnostics
+  - editor integration
+  - LSP / TS plugin
+
+### `@jue/create`
+
+- 层级：Official Tooling Layer
+- 职责：
+  - project scaffold
+  - example / template bootstrap
+- 备注：
+  - 要等 authoring surface 稳住后再做
+
+## 六、不属于 `jue` 本体的包
+
+下面这些可以存在，但不应该算进 `jue` 本体：
+
+- `@jue/app-framework`
+- `@jue/ssr-framework`
+- `@jue/design-system`
+- `@jue/cms`
+- `@jue/admin-shell`
+- 第三方 UI kit
+- 第三方 router convention
+- 第三方 data client
+
+这些属于 ecosystem，不该反向定义 kernel 或 official layers。
+
+## 当前建议
+
+早期基线已经成立，但当前主线还不能宣布收口。
+
+现在更合理的目标不是继续补包面，而是：
+
+1. 保持 `shared / runtime-core / compiler / jsx / web` 的边界稳定
+2. 把 `primitives / authoring-check / stream / router / query / devtrace / docsgen` 从“包存在”推进到“能力真实支持”
+3. 只有在新验收线下通过之后，才进入后续扩面
+
+## 结论
+
+如果要把 `jue` 自研做完，真正的版图不是：
+
+- runtime
+- compiler
+
+而是：
+
+- kernel
+- authoring
+- host
+- stdlib
+- tooling
+
+其中前 3 层是本体地基，后 2 层决定这个世界能不能真正被人使用。

@@ -1,0 +1,40 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "preserve",
+    "rootDir": "../..",
+    "outDir": "dist",
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "types": [
+      "vite/client",
+      "node"
+    ]
+  },
+  "include": [
+    "apps/**/*.ts",
+    "apps/**/*.tsx",
+    "runtime/**/*.ts",
+    "scripts/**/*.ts",
+    "vite-env.d.ts",
+    "../../../packages/kernel/shared/src/**/*.ts",
+    "../../../packages/kernel/runtime-core/src/**/*.ts",
+    "../../../packages/kernel/compiler/src/**/*.ts",
+    "../../../packages/authoring/jsx/src/**/*.ts",
+    "../../../packages/authoring/jsx/src/**/*.d.ts",
+    "../../../packages/host/web/src/**/*.ts",
+    "../../../packages/authoring/primitives/src/**/*.ts",
+    "../../../packages/authoring/authoring-check/src/**/*.ts",
+    "../../../packages/stdlib/stream/src/**/*.ts",
+    "../../../packages/stdlib/router/src/**/*.ts",
+    "../../../packages/stdlib/query/src/**/*.ts",
+    "../../../packages/tooling/devtrace/src/**/*.ts",
+    "../../../packages/tooling/docsgen/src/**/*.ts",
+    "../../../packages/tooling/examples/src/**/*.ts",
+    "../../../packages/tooling/inspect/src/**/*.ts",
+    "../../../packages/tooling/testkit/src/**/*.ts",
+    "../../../packages/tooling/bench/src/**/*.ts"
+  ]
+}

@@ -18,79 +18,79 @@
     "composite": true,
     "paths": {
       "@jue/shared": [
-        "./packages/shared/src/index.ts"
+        "./packages/kernel/shared/src/index.ts"
       ],
       "@jue/runtime-core": [
-        "./packages/runtime-core/src/index.ts"
+        "./packages/kernel/runtime-core/src/index.ts"
       ],
       "@jue/runtime-core/channel": [
-        "./packages/runtime-core/src/channel.ts"
+        "./packages/kernel/runtime-core/src/channel.ts"
       ],
       "@jue/runtime-core/reactivity": [
-        "./packages/runtime-core/src/reactivity.ts"
+        "./packages/kernel/runtime-core/src/reactivity.ts"
       ],
       "@jue/runtime-core/host-contract": [
-        "./packages/runtime-core/src/host-contract.ts"
+        "./packages/kernel/runtime-core/src/host-contract.ts"
       ],
       "@jue/compiler": [
-        "./packages/compiler/src/index.ts"
+        "./packages/kernel/compiler/src/index.ts"
       ],
       "@jue/compiler/frontend": [
-        "./packages/compiler/src/frontend/index.ts"
+        "./packages/kernel/compiler/src/frontend/index.ts"
       ],
       "@jue/compiler/ir": [
-        "./packages/compiler/src/ir.ts"
+        "./packages/kernel/compiler/src/ir.ts"
       ],
       "@jue/compiler/lowering": [
-        "./packages/compiler/src/lowering.ts"
+        "./packages/kernel/compiler/src/lowering.ts"
       ],
       "@jue/compiler/builder": [
-        "./packages/compiler/src/builder.ts"
+        "./packages/kernel/compiler/src/builder.ts"
       ],
       "@jue/jsx": [
-        "./packages/jsx/src/index.ts"
+        "./packages/authoring/jsx/src/index.ts"
       ],
       "@jue/primitives": [
-        "./packages/primitives/src/index.ts"
+        "./packages/authoring/primitives/src/index.ts"
       ],
       "@jue/authoring-check": [
-        "./packages/authoring-check/src/index.ts"
+        "./packages/authoring/authoring-check/src/index.ts"
       ],
       "@jue/stream": [
-        "./packages/stream/src/index.ts"
+        "./packages/stdlib/stream/src/index.ts"
       ],
       "@jue/router": [
-        "./packages/router/src/index.ts"
+        "./packages/stdlib/router/src/index.ts"
       ],
       "@jue/query": [
-        "./packages/query/src/index.ts"
+        "./packages/stdlib/query/src/index.ts"
       ],
       "@jue/devtrace": [
-        "./packages/devtrace/src/index.ts"
+        "./packages/tooling/devtrace/src/index.ts"
       ],
       "@jue/docsgen": [
-        "./packages/docsgen/src/index.ts"
+        "./packages/tooling/docsgen/src/index.ts"
       ],
       "@jue/web": [
-        "./packages/web/src/index.ts"
+        "./packages/host/web/src/index.ts"
       ],
       "@jue/native": [
-        "./packages/native/src/index.ts"
+        "./packages/host/native/src/index.ts"
       ],
       "@jue/skyline": [
-        "./packages/skyline/src/index.ts"
+        "./packages/host-target/skyline/src/index.ts"
       ],
       "@jue/examples": [
-        "./packages/examples/src/index.ts"
+        "./packages/tooling/examples/src/index.ts"
       ],
       "@jue/inspect": [
-        "./packages/inspect/src/index.ts"
+        "./packages/tooling/inspect/src/index.ts"
       ],
       "@jue/testkit": [
-        "./packages/testkit/src/index.ts"
+        "./packages/tooling/testkit/src/index.ts"
       ],
       "@jue/bench": [
-        "./packages/bench/src/index.ts"
+        "./packages/tooling/bench/src/index.ts"
       ]
     }
   }
