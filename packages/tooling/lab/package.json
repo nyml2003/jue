@@ -1,0 +1,39 @@
+{
+  "name": "@jue/lab",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./examples": {
+      "types": "./dist/examples.d.ts",
+      "import": "./dist/examples.js"
+    },
+    "./inspect": {
+      "types": "./dist/inspect.d.ts",
+      "import": "./dist/inspect.js"
+    },
+    "./testkit": {
+      "types": "./dist/testkit.d.ts",
+      "import": "./dist/testkit.js"
+    },
+    "./bench": {
+      "types": "./dist/bench.d.ts",
+      "import": "./dist/bench.js"
+    }
+  },
+  "dependencies": {
+    "@jue/compiler": "workspace:*",
+    "@jue/shared": "workspace:*"
+  },
+  "scripts": {
+    "bench": "pnpm exec tsx ./src/cli.ts bench",
+    "compile-examples": "pnpm exec tsx ./src/cli.ts compile-examples",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('../../../node_modules/.cache/jue/lab',{recursive:true,force:true})\" && esbuild src/index.ts src/examples.ts src/inspect.ts src/testkit.ts src/bench.ts src/cli.ts src/compile-examples.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/compiler --external:@jue/compiler/frontend --external:@jue/shared --outdir=dist --sourcemap && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}

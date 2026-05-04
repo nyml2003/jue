@@ -23,10 +23,11 @@ const workspaceAliases = {
   "@jue/docsgen": resolve(__dirname, "packages/tooling/docsgen/src/index.ts"),
   "@jue/web": resolve(__dirname, "packages/host/web/src/index.ts"),
   "@jue/native": resolve(__dirname, "packages/host/native/src/index.ts"),
-  "@jue/examples": resolve(__dirname, "packages/tooling/examples/src/index.ts"),
-  "@jue/inspect": resolve(__dirname, "packages/tooling/inspect/src/index.ts"),
-  "@jue/testkit": resolve(__dirname, "packages/tooling/testkit/src/index.ts"),
-  "@jue/bench": resolve(__dirname, "packages/tooling/bench/src/index.ts")
+  "@jue/lab/examples": resolve(__dirname, "packages/tooling/lab/src/examples.ts"),
+  "@jue/lab/inspect": resolve(__dirname, "packages/tooling/lab/src/inspect.ts"),
+  "@jue/lab/testkit": resolve(__dirname, "packages/tooling/lab/src/testkit.ts"),
+  "@jue/lab/bench": resolve(__dirname, "packages/tooling/lab/src/bench.ts"),
+  "@jue/lab": resolve(__dirname, "packages/tooling/lab/src/index.ts")
 };
 
 export default defineConfig({

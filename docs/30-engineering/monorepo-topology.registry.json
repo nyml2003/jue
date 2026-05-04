@@ -219,54 +219,15 @@
       ]
     },
     {
-      "packageId": "@jue/examples",
-      "path": "packages/tooling/examples",
+      "packageId": "@jue/lab",
+      "path": "packages/tooling/lab",
       "containerKind": "pure",
       "disclosureUnits": [
         {
-          "id": "@jue/examples",
+          "id": "@jue/lab",
           "entry": ".",
           "layer": "official-tooling",
-          "role": "example-registry-tooling"
-        }
-      ]
-    },
-    {
-      "packageId": "@jue/inspect",
-      "path": "packages/tooling/inspect",
-      "containerKind": "pure",
-      "disclosureUnits": [
-        {
-          "id": "@jue/inspect",
-          "entry": ".",
-          "layer": "official-tooling",
-          "role": "inspect-tooling"
-        }
-      ]
-    },
-    {
-      "packageId": "@jue/testkit",
-      "path": "packages/tooling/testkit",
-      "containerKind": "pure",
-      "disclosureUnits": [
-        {
-          "id": "@jue/testkit",
-          "entry": ".",
-          "layer": "official-tooling",
-          "role": "testkit-tooling"
-        }
-      ]
-    },
-    {
-      "packageId": "@jue/bench",
-      "path": "packages/tooling/bench",
-      "containerKind": "pure",
-      "disclosureUnits": [
-        {
-          "id": "@jue/bench",
-          "entry": ".",
-          "layer": "official-tooling",
-          "role": "benchmark-tooling"
+          "role": "lab-tooling"
         }
       ]
     },

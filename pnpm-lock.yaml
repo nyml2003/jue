@@ -80,7 +80,22 @@ importers:
         specifier: ^6.4.2
         version: 6.4.2(@types/node@24.12.2)(terser@5.46.1)(tsx@4.21.0)
 
-  packages/packages/examples/web-playground:
+  packages/examples/jue-mobile-showcase:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.5.2
+        version: 24.12.2
+      tsx:
+        specifier: ^4.19.3
+        version: 4.21.0
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vite:
+        specifier: ^6.4.2
+        version: 6.4.2(@types/node@24.12.2)(terser@5.46.1)(tsx@4.21.0)
+
+  packages/examples/web-playground:
     dependencies:
       '@jue/shared':
         specifier: workspace:*
@@ -189,18 +204,6 @@ importers:
         specifier: workspace:*
         version: link:../../kernel/shared
 
-  packages/tooling/bench:
-    dependencies:
-      '@jue/examples':
-        specifier: workspace:*
-        version: link:../examples
-      '@jue/shared':
-        specifier: workspace:*
-        version: link:../../kernel/shared
-      '@jue/testkit':
-        specifier: workspace:*
-        version: link:../testkit
-
   packages/tooling/devtrace:
     dependencies:
       '@jue/shared':
@@ -212,41 +215,18 @@ importers:
       '@jue/authoring-check':
         specifier: workspace:*
         version: link:../../authoring/authoring-check
-      '@jue/examples':
+      '@jue/lab':
         specifier: workspace:*
-        version: link:../examples
+        version: link:../lab
       '@jue/primitives':
         specifier: workspace:*
         version: link:../../authoring/primitives
-      '@jue/testkit':
-        specifier: workspace:*
-        version: link:../testkit
 
-  packages/tooling/examples: {}
-
-  packages/tooling/inspect:
+  packages/tooling/lab:
     dependencies:
       '@jue/compiler':
         specifier: workspace:*
         version: link:../../kernel/compiler
-      '@jue/examples':
-        specifier: workspace:*
-        version: link:../examples
-      '@jue/shared':
-        specifier: workspace:*
-        version: link:../../kernel/shared
-
-  packages/tooling/testkit:
-    dependencies:
-      '@jue/compiler':
-        specifier: workspace:*
-        version: link:../../kernel/compiler
-      '@jue/examples':
-        specifier: workspace:*
-        version: link:../examples
-      '@jue/inspect':
-        specifier: workspace:*
-        version: link:../inspect
       '@jue/shared':
         specifier: workspace:*
         version: link:../../kernel/shared

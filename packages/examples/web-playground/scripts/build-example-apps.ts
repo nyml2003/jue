@@ -2,7 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { listExampleApps } from "../../../tooling/examples/src/index";
+import { listExampleApps } from "../../../tooling/lab/src/examples";
 import { build } from "vite";
 
 const PACKAGE_ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -34,10 +34,11 @@ async function main() {
           "@jue/query": resolve(REPO_ROOT, "packages/stdlib/query/src/index.ts"),
           "@jue/devtrace": resolve(REPO_ROOT, "packages/tooling/devtrace/src/index.ts"),
           "@jue/docsgen": resolve(REPO_ROOT, "packages/tooling/docsgen/src/index.ts"),
-          "@jue/examples": resolve(REPO_ROOT, "packages/tooling/examples/src/index.ts"),
-          "@jue/inspect": resolve(REPO_ROOT, "packages/tooling/inspect/src/index.ts"),
-          "@jue/testkit": resolve(REPO_ROOT, "packages/tooling/testkit/src/index.ts"),
-          "@jue/bench": resolve(REPO_ROOT, "packages/tooling/bench/src/index.ts"),
+          "@jue/lab": resolve(REPO_ROOT, "packages/tooling/lab/src/index.ts"),
+          "@jue/lab/examples": resolve(REPO_ROOT, "packages/tooling/lab/src/examples.ts"),
+          "@jue/lab/inspect": resolve(REPO_ROOT, "packages/tooling/lab/src/inspect.ts"),
+          "@jue/lab/testkit": resolve(REPO_ROOT, "packages/tooling/lab/src/testkit.ts"),
+          "@jue/lab/bench": resolve(REPO_ROOT, "packages/tooling/lab/src/bench.ts"),
           "@jue/web": resolve(REPO_ROOT, "packages/host/web/src/index.ts")
         }
       },

@@ -80,17 +80,20 @@
       "@jue/skyline": [
         "./packages/host-target/skyline/src/index.ts"
       ],
-      "@jue/examples": [
-        "./packages/tooling/examples/src/index.ts"
+      "@jue/lab": [
+        "./packages/tooling/lab/src/index.ts"
       ],
-      "@jue/inspect": [
-        "./packages/tooling/inspect/src/index.ts"
+      "@jue/lab/examples": [
+        "./packages/tooling/lab/src/examples.ts"
       ],
-      "@jue/testkit": [
-        "./packages/tooling/testkit/src/index.ts"
+      "@jue/lab/inspect": [
+        "./packages/tooling/lab/src/inspect.ts"
       ],
-      "@jue/bench": [
-        "./packages/tooling/bench/src/index.ts"
+      "@jue/lab/testkit": [
+        "./packages/tooling/lab/src/testkit.ts"
+      ],
+      "@jue/lab/bench": [
+        "./packages/tooling/lab/src/bench.ts"
       ]
     }
   }

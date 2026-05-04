@@ -1,6 +1,6 @@
 # Monorepo Dependency Report
 
-这个文件由 `node ./scripts/monorepo-topology.mjs report` 生成。
+这个文件由 `@jue/docsgen topology --write` 生成。
 它只总结当前 registry 与 workspace manifests 的一致结果，不额外推断未来结构。
 
 ## Layer Summary
@@ -40,12 +40,9 @@
 
 ### Official Tooling
 
-- `@jue/bench`
 - `@jue/devtrace`
 - `@jue/docsgen`
-- `@jue/examples`
-- `@jue/inspect`
-- `@jue/testkit`
+- `@jue/lab`
 
 ### Example Packages
 
@@ -58,13 +55,11 @@
 | Package | Kind | Path | Internal deps |
 | --- | --- | --- | --- |
 | `@jue/authoring-check` | pure | `packages/authoring/authoring-check` | `@jue/compiler`, `@jue/primitives` |
-| `@jue/bench` | pure | `packages/tooling/bench` | `@jue/examples`, `@jue/shared`, `@jue/testkit` |
 | `@jue/compiler` | composite | `packages/kernel/compiler` | `@jue/runtime-core`, `@jue/shared` |
 | `@jue/devtrace` | pure | `packages/tooling/devtrace` | `@jue/shared` |
-| `@jue/docsgen` | pure | `packages/tooling/docsgen` | `@jue/authoring-check`, `@jue/examples`, `@jue/primitives`, `@jue/testkit` |
-| `@jue/examples` | pure | `packages/tooling/examples` | - |
-| `@jue/inspect` | pure | `packages/tooling/inspect` | `@jue/compiler`, `@jue/examples`, `@jue/shared` |
+| `@jue/docsgen` | pure | `packages/tooling/docsgen` | `@jue/authoring-check`, `@jue/lab`, `@jue/primitives` |
 | `@jue/jsx` | pure | `packages/authoring/jsx` | `@jue/primitives`, `@jue/shared` |
+| `@jue/lab` | pure | `packages/tooling/lab` | `@jue/compiler`, `@jue/shared` |
 | `@jue/native` | pure | `packages/host/native` | `@jue/runtime-core`, `@jue/shared` |
 | `@jue/primitives` | pure | `packages/authoring/primitives` | - |
 | `@jue/query` | pure | `packages/stdlib/query` | `@jue/devtrace`, `@jue/runtime-core`, `@jue/shared` |
@@ -73,7 +68,6 @@
 | `@jue/shared` | pure | `packages/kernel/shared` | - |
 | `@jue/skyline` | pure | `packages/host-target/skyline` | `@jue/compiler`, `@jue/shared` |
 | `@jue/stream` | pure | `packages/stdlib/stream` | `@jue/runtime-core`, `@jue/shared` |
-| `@jue/testkit` | pure | `packages/tooling/testkit` | `@jue/compiler`, `@jue/examples`, `@jue/inspect`, `@jue/shared` |
 | `@jue/web` | pure | `packages/host/web` | `@jue/runtime-core`, `@jue/shared` |
 | `@jue/web-playground` | pure | `packages/examples/web-playground` | `@jue/shared`, `@jue/web` |
 | `jue-current-app` | pure | `packages/examples/jue-current-app` | - |
@@ -83,21 +77,16 @@
 
 - `@jue/authoring-check` -> `@jue/compiler` (dependency)
 - `@jue/authoring-check` -> `@jue/primitives` (dependency)
-- `@jue/bench` -> `@jue/examples` (dependency)
-- `@jue/bench` -> `@jue/shared` (dependency)
-- `@jue/bench` -> `@jue/testkit` (dependency)
 - `@jue/compiler` -> `@jue/runtime-core` (dependency)
 - `@jue/compiler` -> `@jue/shared` (dependency)
 - `@jue/devtrace` -> `@jue/shared` (dependency)
 - `@jue/docsgen` -> `@jue/authoring-check` (dependency)
-- `@jue/docsgen` -> `@jue/examples` (dependency)
+- `@jue/docsgen` -> `@jue/lab` (dependency)
 - `@jue/docsgen` -> `@jue/primitives` (dependency)
-- `@jue/docsgen` -> `@jue/testkit` (dependency)
-- `@jue/inspect` -> `@jue/compiler` (dependency)
-- `@jue/inspect` -> `@jue/examples` (dependency)
-- `@jue/inspect` -> `@jue/shared` (dependency)
 - `@jue/jsx` -> `@jue/primitives` (dependency)
 - `@jue/jsx` -> `@jue/shared` (dependency)
+- `@jue/lab` -> `@jue/compiler` (dependency)
+- `@jue/lab` -> `@jue/shared` (dependency)
 - `@jue/native` -> `@jue/runtime-core` (dependency)
 - `@jue/native` -> `@jue/shared` (dependency)
 - `@jue/query` -> `@jue/devtrace` (dependency)
@@ -110,10 +99,6 @@
 - `@jue/skyline` -> `@jue/shared` (dependency)
 - `@jue/stream` -> `@jue/runtime-core` (dependency)
 - `@jue/stream` -> `@jue/shared` (dependency)
-- `@jue/testkit` -> `@jue/compiler` (dependency)
-- `@jue/testkit` -> `@jue/examples` (dependency)
-- `@jue/testkit` -> `@jue/inspect` (dependency)
-- `@jue/testkit` -> `@jue/shared` (dependency)
 - `@jue/web` -> `@jue/runtime-core` (dependency)
 - `@jue/web` -> `@jue/shared` (dependency)
 - `@jue/web-playground` -> `@jue/shared` (dependency)
@@ -125,21 +110,16 @@
 graph TD
   _jue_authoring_check["@jue/authoring-check"] --> _jue_compiler["@jue/compiler"]
   _jue_authoring_check["@jue/authoring-check"] --> _jue_primitives["@jue/primitives"]
-  _jue_bench["@jue/bench"] --> _jue_examples["@jue/examples"]
-  _jue_bench["@jue/bench"] --> _jue_shared["@jue/shared"]
-  _jue_bench["@jue/bench"] --> _jue_testkit["@jue/testkit"]
   _jue_compiler["@jue/compiler"] --> _jue_runtime_core["@jue/runtime-core"]
   _jue_compiler["@jue/compiler"] --> _jue_shared["@jue/shared"]
   _jue_devtrace["@jue/devtrace"] --> _jue_shared["@jue/shared"]
   _jue_docsgen["@jue/docsgen"] --> _jue_authoring_check["@jue/authoring-check"]
-  _jue_docsgen["@jue/docsgen"] --> _jue_examples["@jue/examples"]
+  _jue_docsgen["@jue/docsgen"] --> _jue_lab["@jue/lab"]
   _jue_docsgen["@jue/docsgen"] --> _jue_primitives["@jue/primitives"]
-  _jue_docsgen["@jue/docsgen"] --> _jue_testkit["@jue/testkit"]
-  _jue_inspect["@jue/inspect"] --> _jue_compiler["@jue/compiler"]
-  _jue_inspect["@jue/inspect"] --> _jue_examples["@jue/examples"]
-  _jue_inspect["@jue/inspect"] --> _jue_shared["@jue/shared"]
   _jue_jsx["@jue/jsx"] --> _jue_primitives["@jue/primitives"]
   _jue_jsx["@jue/jsx"] --> _jue_shared["@jue/shared"]
+  _jue_lab["@jue/lab"] --> _jue_compiler["@jue/compiler"]
+  _jue_lab["@jue/lab"] --> _jue_shared["@jue/shared"]
   _jue_native["@jue/native"] --> _jue_runtime_core["@jue/runtime-core"]
   _jue_native["@jue/native"] --> _jue_shared["@jue/shared"]
   _jue_query["@jue/query"] --> _jue_devtrace["@jue/devtrace"]
@@ -152,10 +132,6 @@ graph TD
   _jue_skyline["@jue/skyline"] --> _jue_shared["@jue/shared"]
   _jue_stream["@jue/stream"] --> _jue_runtime_core["@jue/runtime-core"]
   _jue_stream["@jue/stream"] --> _jue_shared["@jue/shared"]
-  _jue_testkit["@jue/testkit"] --> _jue_compiler["@jue/compiler"]
-  _jue_testkit["@jue/testkit"] --> _jue_examples["@jue/examples"]
-  _jue_testkit["@jue/testkit"] --> _jue_inspect["@jue/inspect"]
-  _jue_testkit["@jue/testkit"] --> _jue_shared["@jue/shared"]
   _jue_web["@jue/web"] --> _jue_runtime_core["@jue/runtime-core"]
   _jue_web["@jue/web"] --> _jue_shared["@jue/shared"]
   _jue_web_playground["@jue/web-playground"] --> _jue_shared["@jue/shared"]
