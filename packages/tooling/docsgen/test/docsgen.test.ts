@@ -23,6 +23,6 @@ describe("@jue/docsgen", () => {
     const output = await generateCoreSpecSnippet();
 
     expect(output).toContain("Core Spec Index");
-    expect(output).toContain("05-runtime-model.md");
+    expect(output).toContain("01-authoring-grammar-spec.md");
   });
 });
