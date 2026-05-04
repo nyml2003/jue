@@ -34,12 +34,16 @@
     "@jue/runtime-core": "workspace:*",
     "@jue/shared": "workspace:*"
   },
-  "scripts": {
-    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('../../../node_modules/.cache/jue/compiler',{recursive:true,force:true})\" && esbuild src/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/index.js --sourcemap && esbuild src/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --minify --outfile=dist/index.min.js && esbuild src/frontend/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/frontend/index.js --sourcemap && esbuild src/frontend/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --minify --outfile=dist/frontend/index.min.js && esbuild src/ir.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/ir.js --sourcemap && esbuild src/lowering.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/lowering.js --sourcemap && esbuild src/builder.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/builder.js --sourcemap && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
-  },
   "devDependencies": {
     "@types/babel__generator": "^7.27.0",
     "@types/babel__traverse": "^7.28.0"
-  }
+  },
+  "scripts": {
+    "build": "jue-cli",
+    "typecheck": "jue-cli"
+  },
+  "jueCli": [
+    { "phase": "build", "mode": "library", "platform": "node", "minify": ["index", "frontend"] },
+    { "phase": "typecheck", "mode": "tsc" }
+  ]
 }

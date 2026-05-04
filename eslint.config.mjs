@@ -10,7 +10,7 @@ export default [
       "coverage/**",
       "node_modules/**",
       ".omx/**",
-      "examples/**/generated/**",
+      "**/generated/**",
       "**/node_modules/**",
       "eslint.config.mjs",
       "vitest.config.ts",
@@ -58,6 +58,15 @@ export default [
           "argsIgnorePattern": "^_",
           "varsIgnorePattern": "^_"
         }
+      ],
+      "max-len": [
+        "error",
+        {
+          "code": 220,
+          "ignoreComments": true,
+          "ignoreStrings": true,
+          "ignoreTemplateLiterals": true
+        }
       ]
     }
   },
@@ -68,6 +77,19 @@ export default [
     rules: {
       "@typescript-eslint/no-unsafe-return": "off",
       "@typescript-eslint/no-unsafe-assignment": "off"
+    }
+  },
+  {
+    files: [
+      "scripts/**/*.ts"
+    ],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@typescript-eslint/require-await": "off"
     }
   }
 ];

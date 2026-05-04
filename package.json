@@ -2,19 +2,28 @@
   "name": "jue-workspace",
   "private": true,
   "packageManager": "pnpm@10.10.0",
+  "bin": {
+    "jue-cli": "jue-cli.js"
+  },
   "scripts": {
-    "build": "pnpm -r --filter \"./packages/*/*\" run build && pnpm build:examples",
+    "build": "jue-cli",
     "compile:components": "pnpm exec tsx ./scripts/compile-example-components.ts",
     "build:examples": "pnpm --filter @jue/web-playground build",
     "docs": "pnpm --filter @jue/docsgen docsgen",
-    "typecheck": "pnpm exec tsc -p tsconfig.check.json --noEmit --pretty false",
-    "lint": "eslint .",
+    "lint": "jue-cli",
+    "typecheck": "jue-cli",
     "test": "node ./node_modules/vitest/vitest.mjs run",
     "test:e2e": "pnpm --filter @jue/web-playground test:e2e",
     "dev": "pnpm --filter @jue/web-playground preview",
     "bench": "pnpm --filter @jue/lab bench"
   },
+  "jueCli": [
+    { "phase": "build", "mode": "workspace", "post": "pnpm build:examples" },
+    { "phase": "lint", "mode": "eslint" },
+    { "phase": "typecheck", "mode": "tsc", "tsconfig": "tsconfig.check.json", "pretty": false }
+  ],
   "devDependencies": {
+    "jue-cli": "link:./scripts",
     "@eslint/js": "^9.25.0",
     "@types/node": "^24.5.2",
     "@vitest/coverage-v8": "^3.2.4",

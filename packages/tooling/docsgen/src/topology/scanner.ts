@@ -36,7 +36,7 @@ async function collectPackagesFromNestedRoot(root: string): Promise<WorkspacePac
       }
 
       packages.push({
-        packageId: String(manifest.name),
+        packageId: typeof manifest.name === "string" ? manifest.name : "",
         path: relative(REPO_ROOT, packagePath).replaceAll("\\", "/"),
         manifest
       });

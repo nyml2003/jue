@@ -5,8 +5,10 @@ import { fileURLToPath } from "node:url";
 import { generateCoreSpecSnippet, generateExampleRegistrySnippet, generateSupportMatrix } from "./index";
 import { collectWorkspacePackages } from "./topology/scanner.js";
 import { renderReport, writeTopologyReport } from "./topology/report.js";
+import type { Registry } from "./topology/types.js";
 import { collectPackageRoots } from "./sizes/scanner.js";
 import { buildSizeRows, printSizeReport } from "./sizes/report.js";
+import type { SizeRow } from "./sizes/report.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 const REGISTRY_PATH = join(REPO_ROOT, "docs", "30-engineering", "monorepo-topology.registry.json");
@@ -25,7 +27,7 @@ async function main() {
   }
 
   if (command === "sizes") {
-    await runSizes();
+    runSizes();
     return;
   }
 
@@ -34,7 +36,7 @@ async function main() {
     console.log("");
     await runTopology();
     console.log("");
-    await runSizes();
+    runSizes();
     return;
   }
 
@@ -56,7 +58,7 @@ async function runStatus() {
 
 async function runTopology() {
   const registryContent = await readFile(REGISTRY_PATH, "utf8");
-  const registry = JSON.parse(registryContent);
+  const registry = JSON.parse(registryContent) as Registry;
   const workspacePackages = await collectWorkspacePackages();
 
   const { validateRegistry } = await import("./topology/registry.js");
@@ -72,11 +74,11 @@ async function runTopology() {
   }
 }
 
-async function runSizes() {
+function runSizes() {
   const packagesRoot = join(REPO_ROOT, "packages");
   const packageRoots = collectPackageRoots(packagesRoot).sort((left, right) => left.packageName.localeCompare(right.packageName));
 
-  const allRows: import("./sizes/report.js").SizeRow[] = [];
+  const allRows: SizeRow[] = [];
   for (const { packageName, root } of packageRoots) {
     allRows.push(...buildSizeRows(packageName, root));
   }

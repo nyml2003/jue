@@ -1,1 +1,61 @@
-import { err, ok, type Result } from "@jue/shared";  export interface SignalState {   readonly values: unknown[];   readonly version: Uint32Array;   readonly flags: Uint8Array; }  export interface SignalStateError {   readonly code: string;   readonly message: string; }  export function createSignalState(signalCount: number): SignalState {   return {     values: new Array<unknown>(signalCount).fill(null),     version: new Uint32Array(signalCount),     flags: new Uint8Array(signalCount)   }; }  export function readSignal(state: SignalState, slot: number): Result<unknown, SignalStateError> {   const range = validateSignalSlot(state, slot);    if (!range.ok) {     return range;   }    return ok(state.values[slot]); }  export function writeSignal(   state: SignalState,   slot: number,   value: unknown ): Result<boolean, SignalStateError> {   const range = validateSignalSlot(state, slot);    if (!range.ok) {     return range;   }    if (Object.is(state.values[slot], value)) {     return ok(false);   }    state.values[slot] = value;   state.version[slot] = (state.version[slot] ?? 0) + 1;   return ok(true); }  function validateSignalSlot(state: SignalState, slot: number): Result<void, SignalStateError> {   if (slot < 0 || slot >= state.values.length) {     return err({       code: "SIGNAL_SLOT_OUT_OF_RANGE",       message: `Signal slot ${slot} is out of range for size ${state.values.length}.`     });   }    return ok(undefined); }
+import { err, ok, type Result } from "@jue/shared";
+
+export interface SignalState {
+  readonly values: unknown[];
+  readonly version: Uint32Array;
+  readonly flags: Uint8Array;
+}
+
+export interface SignalStateError {
+  readonly code: string;
+  readonly message: string;
+}
+
+export function createSignalState(signalCount: number): SignalState {
+  return {
+    values: new Array<unknown>(signalCount).fill(null),
+    version: new Uint32Array(signalCount),
+    flags: new Uint8Array(signalCount)
+  };
+}
+
+export function readSignal(state: SignalState, slot: number): Result<unknown, SignalStateError> {
+  const range = validateSignalSlot(state, slot);
+
+  if (!range.ok) {
+    return range;
+  }
+
+  return ok(state.values[slot]);
+}
+
+export function writeSignal(
+  state: SignalState,
+  slot: number,
+  value: unknown
+): Result<boolean, SignalStateError> {
+  const range = validateSignalSlot(state, slot);
+
+  if (!range.ok) {
+    return range;
+  }
+
+  if (Object.is(state.values[slot], value)) {
+    return ok(false);
+  }
+
+  state.values[slot] = value;
+  state.version[slot] = (state.version[slot] ?? 0) + 1;
+  return ok(true);
+}
+
+function validateSignalSlot(state: SignalState, slot: number): Result<void, SignalStateError> {
+  if (slot < 0 || slot >= state.values.length) {
+    return err({
+      code: "SIGNAL_SLOT_OUT_OF_RANGE",
+      message: `Signal slot ${slot} is out of range for size ${state.values.length}.`
+    });
+  }
+
+  return ok(undefined);
+}

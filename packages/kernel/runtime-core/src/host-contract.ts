@@ -1,1 +1,7 @@
-export type {   HostAdapter,   HostAdapterError,   HostEventHandler,   HostNode,   HostRoot } from "./types";
+export type {
+  HostAdapter,
+  HostAdapterError,
+  HostEventHandler,
+  HostNode,
+  HostRoot
+} from "./types";

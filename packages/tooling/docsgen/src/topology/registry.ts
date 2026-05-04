@@ -1,4 +1,4 @@
-import type { Container, Registry, WorkspacePackage } from "./types.js";
+import type { Registry, WorkspacePackage } from "./types.js";
 
 const ORDERED_LAYERS = [
   "kernel",

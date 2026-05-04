@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { Container, Edge, Registry, WorkspacePackage } from "./types.js";
+import type { Edge, Registry, WorkspacePackage } from "./types.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../../../", import.meta.url));
 const REPORT_PATH = join(REPO_ROOT, "docs", "30-engineering", "05-monorepo-dependency-report.md");

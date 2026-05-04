@@ -1,1 +1,20 @@
-import { describe, expect, it } from "vitest";  import { createChannel, drainChannel, publishChannel, subscribeChannel } from "../src/channel";  describe("@jue/runtime-core channel", () => {   it("publishes versioned messages with lane metadata", () => {     const channel = createChannel<string>("saveDone");     const seen: string[] = [];     const subscription = subscribeChannel(channel, message => {       seen.push(`${message.version}:${message.value}`);     });      expect(publishChannel(channel, "ok", 2).ok).toBe(true);     expect(publishChannel(channel, "done").ok).toBe(true);     expect(seen).toEqual(["1:ok", "2:done"]);     expect(drainChannel(channel).map(message => message.value)).toEqual(["ok", "done"]);      subscription.unsubscribe();   }); });
+import { describe, expect, it } from "vitest";
+
+import { createChannel, drainChannel, publishChannel, subscribeChannel } from "../src/channel";
+
+describe("@jue/runtime-core channel", () => {
+  it("publishes versioned messages with lane metadata", () => {
+    const channel = createChannel<string>("saveDone");
+    const seen: string[] = [];
+    const subscription = subscribeChannel(channel, message => {
+      seen.push(`${message.version}:${message.value}`);
+    });
+
+    expect(publishChannel(channel, "ok", 2).ok).toBe(true);
+    expect(publishChannel(channel, "done").ok).toBe(true);
+    expect(seen).toEqual(["1:ok", "2:done"]);
+    expect(drainChannel(channel).map(message => message.value)).toEqual(["ok", "done"]);
+
+    subscription.unsubscribe();
+  });
+});

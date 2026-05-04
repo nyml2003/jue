@@ -33,7 +33,11 @@
   "scripts": {
     "bench": "pnpm exec tsx ./src/cli.ts bench",
     "compile-examples": "pnpm exec tsx ./src/cli.ts compile-examples",
-    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('../../../node_modules/.cache/jue/lab',{recursive:true,force:true})\" && esbuild src/index.ts src/examples.ts src/inspect.ts src/testkit.ts src/bench.ts src/cli.ts src/compile-examples.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/compiler --external:@jue/compiler/frontend --external:@jue/shared --outdir=dist --sourcemap && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
-  }
+    "build": "jue-cli",
+    "typecheck": "jue-cli"
+  },
+  "jueCli": [
+    { "phase": "build", "mode": "library", "platform": "node", "minify": false, "extraEntries": ["src/cli.ts", "src/compile-examples.ts"] },
+    { "phase": "typecheck", "mode": "tsc" }
+  ]
 }

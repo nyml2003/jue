@@ -1,0 +1,8 @@
+{
+  "name": "jue-cli",
+  "version": "0.0.0",
+  "private": true,
+  "bin": {
+    "jue-cli": "bin/jue-cli.js"
+  }
+}

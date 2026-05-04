@@ -29,6 +29,9 @@ importers:
       jsdom:
         specifier: ^26.1.0
         version: 26.1.0
+      jue-cli:
+        specifier: link:./scripts
+        version: link:scripts
       tsx:
         specifier: ^4.19.3
         version: 4.21.0
@@ -66,6 +69,16 @@ importers:
   packages/authoring/primitives: {}
 
   packages/examples/jue-current-app:
+    dependencies:
+      '@jue/jsx':
+        specifier: workspace:*
+        version: link:../../authoring/jsx
+      '@jue/runtime-core':
+        specifier: workspace:*
+        version: link:../../kernel/runtime-core
+      '@jue/web':
+        specifier: workspace:*
+        version: link:../../host/web
     devDependencies:
       '@types/node':
         specifier: ^24.5.2
@@ -81,6 +94,16 @@ importers:
         version: 6.4.2(@types/node@24.12.2)(terser@5.46.1)(tsx@4.21.0)
 
   packages/examples/jue-mobile-showcase:
+    dependencies:
+      '@jue/jsx':
+        specifier: workspace:*
+        version: link:../../authoring/jsx
+      '@jue/runtime-core':
+        specifier: workspace:*
+        version: link:../../kernel/runtime-core
+      '@jue/web':
+        specifier: workspace:*
+        version: link:../../host/web
     devDependencies:
       '@types/node':
         specifier: ^24.5.2

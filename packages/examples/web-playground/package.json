@@ -8,13 +8,17 @@
     "@jue/web": "workspace:*"
   },
   "scripts": {
-    "build": "pnpm exec tsx ../../../scripts/compile-example-components.ts && pnpm exec tsx ./scripts/build-example-apps.ts",
+    "build": "jue-cli",
     "preview": "pnpm run build && pnpm exec tsx ./scripts/serve-built-example-apps.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "jue-cli",
     "test:e2e": "pnpm run build && playwright test"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",
     "terser": "^5.46.1"
-  }
+  },
+  "jueCli": [
+    { "phase": "build", "mode": "custom", "command": "pnpm exec tsx ../../../scripts/compile-example-components.ts && pnpm exec tsx ./scripts/build-example-apps.ts" },
+    { "phase": "typecheck", "mode": "tsc" }
+  ]
 }

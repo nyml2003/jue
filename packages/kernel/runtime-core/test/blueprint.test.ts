@@ -1,1 +1,177 @@
-import { BindingOpcode, INVALID_INDEX, RegionType } from "@jue/shared"; import { describe, expect, it } from "vitest";  import { createBlueprint, createEmptyBlueprint } from "../src/index";  describe("@jue/runtime-core createBlueprint errors", () => {   it("rejects mismatched binding tables", () => {     expect(createBlueprint({       nodeCount: 0,       bindingOpcode: new Uint8Array([BindingOpcode.TEXT]),       bindingNodeIndex: new Uint32Array(0),       bindingDataIndex: new Uint32Array([0]),       regionType: new Uint8Array(0),       regionAnchorStart: new Uint32Array(0),       regionAnchorEnd: new Uint32Array(0)     })).toEqual({       ok: false,       value: null,       error: {         code: "INVALID_BINDING_TABLE",         message: "binding opcode, node index, and data index tables must have the same length."       }     });   });    it("rejects mismatched region tables", () => {     expect(createBlueprint({       nodeCount: 0,       bindingOpcode: new Uint8Array(0),       bindingNodeIndex: new Uint32Array(0),       bindingDataIndex: new Uint32Array(0),       regionType: new Uint8Array([RegionType.CONDITIONAL]),       regionAnchorStart: new Uint32Array(0),       regionAnchorEnd: new Uint32Array([INVALID_INDEX])     })).toEqual({       ok: false,       value: null,       error: {         code: "INVALID_REGION_TABLE",         message: "region type and anchor tables must have the same length."       }     });   });    it("rejects mismatched region branch tables", () => {     expect(createBlueprint({       nodeCount: 0,       bindingOpcode: new Uint8Array(0),       bindingNodeIndex: new Uint32Array(0),       bindingDataIndex: new Uint32Array(0),       regionType: new Uint8Array([RegionType.CONDITIONAL]),       regionAnchorStart: new Uint32Array([INVALID_INDEX]),       regionAnchorEnd: new Uint32Array([INVALID_INDEX]),       regionBranchRangeStart: new Uint32Array(0),       regionBranchRangeCount: new Uint32Array([1])     })).toEqual({       ok: false,       value: null,       error: {         code: "INVALID_REGION_BRANCH_TABLE",         message: "region branch range tables must have the same length as regionType."       }     });   });    it("rejects mismatched region branch node tables", () => {     expect(createBlueprint({       nodeCount: 0,       bindingOpcode: new Uint8Array(0),       bindingNodeIndex: new Uint32Array(0),       bindingDataIndex: new Uint32Array(0),       regionType: new Uint8Array([RegionType.CONDITIONAL]),       regionAnchorStart: new Uint32Array([INVALID_INDEX]),       regionAnchorEnd: new Uint32Array([INVALID_INDEX]),       regionBranchNodeStart: new Uint32Array([1]),       regionBranchNodeEnd: new Uint32Array(0)     })).toEqual({       ok: false,       value: null,       error: {         code: "INVALID_REGION_BRANCH_NODE_TABLE",         message: "region branch node start and end tables must have the same length."       }     });   });    it("rejects mismatched nested block region tables", () => {     expect(createBlueprint({       nodeCount: 0,       bindingOpcode: new Uint8Array(0),       bindingNodeIndex: new Uint32Array(0),       bindingDataIndex: new Uint32Array(0),       regionType: new Uint8Array([RegionType.NESTED_BLOCK]),       regionAnchorStart: new Uint32Array([INVALID_INDEX]),       regionAnchorEnd: new Uint32Array([INVALID_INDEX]),       regionNestedBlockSlot: new Uint32Array(0),       regionNestedBlueprintSlot: new Uint32Array([1]),       regionNestedMountMode: new Uint8Array([0])     })).toEqual({       ok: false,       value: null,       error: {         code: "INVALID_REGION_NESTED_TABLE",         message: "nested block region tables must have the same length as regionType."       }     });   });    it("rejects node tables that do not match nodeCount", () => {     expect(createBlueprint({       nodeCount: 1,       nodeKind: new Uint8Array(0),       bindingOpcode: new Uint8Array(0),       bindingNodeIndex: new Uint32Array(0),       bindingDataIndex: new Uint32Array(0),       regionType: new Uint8Array(0),       regionAnchorStart: new Uint32Array(0),       regionAnchorEnd: new Uint32Array(0)     })).toEqual({       ok: false,       value: null,       error: {         code: "INVALID_NODE_TABLE",         message: "node tables must have the same length as nodeCount."       }     });   });    it("rejects binding node indexes that exceed nodeCount", () => {     expect(createBlueprint({       nodeCount: 1,       bindingOpcode: new Uint8Array([BindingOpcode.TEXT]),       bindingNodeIndex: new Uint32Array([2]),       bindingDataIndex: new Uint32Array([0]),       regionType: new Uint8Array(0),       regionAnchorStart: new Uint32Array(0),       regionAnchorEnd: new Uint32Array(0)     })).toEqual({       ok: false,       value: null,       error: {         code: "BINDING_NODE_OUT_OF_RANGE",         message: "Binding node index 2 is out of range for nodeCount 1."       }     });   });    it("creates an empty blueprint", () => {     expect(createEmptyBlueprint()).toEqual({       nodeCount: 0,       bindingCount: 0,       regionCount: 0,       nodeKind: new Uint8Array(0),       nodePrimitiveRefIndex: new Uint32Array(0),       nodeTextRefIndex: new Uint32Array(0),       nodeParentIndex: new Uint32Array(0),       bindingOpcode: new Uint8Array(0),       bindingNodeIndex: new Uint32Array(0),       bindingDataIndex: new Uint32Array(0),       bindingArgU32: new Uint32Array(0),       bindingArgRef: [],       regionType: new Uint8Array(0),       regionAnchorStart: new Uint32Array(0),       regionAnchorEnd: new Uint32Array(0),       regionBranchRangeStart: new Uint32Array(0),       regionBranchRangeCount: new Uint32Array(0),       regionBranchNodeStart: new Uint32Array(0),       regionBranchNodeEnd: new Uint32Array(0),       regionNestedBlockSlot: new Uint32Array(0),       regionNestedBlueprintSlot: new Uint32Array(0),       regionNestedMountMode: new Uint8Array(0),       signalToBindingStart: new Uint32Array(0),       signalToBindingCount: new Uint32Array(0),       signalToBindings: new Uint32Array(0)     });   }); });
+import { BindingOpcode, INVALID_INDEX, RegionType } from "@jue/shared";
+import { describe, expect, it } from "vitest";
+
+import { createBlueprint, createEmptyBlueprint } from "../src/index";
+
+describe("@jue/runtime-core createBlueprint errors", () => {
+  it("rejects mismatched binding tables", () => {
+    expect(createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array([BindingOpcode.TEXT]),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array([0]),
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0)
+    })).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "INVALID_BINDING_TABLE",
+        message: "binding opcode, node index, and data index tables must have the same length."
+      }
+    });
+  });
+
+  it("rejects mismatched region tables", () => {
+    expect(createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      regionType: new Uint8Array([RegionType.CONDITIONAL]),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array([INVALID_INDEX])
+    })).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "INVALID_REGION_TABLE",
+        message: "region type and anchor tables must have the same length."
+      }
+    });
+  });
+
+  it("rejects mismatched region branch tables", () => {
+    expect(createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      regionType: new Uint8Array([RegionType.CONDITIONAL]),
+      regionAnchorStart: new Uint32Array([INVALID_INDEX]),
+      regionAnchorEnd: new Uint32Array([INVALID_INDEX]),
+      regionBranchRangeStart: new Uint32Array(0),
+      regionBranchRangeCount: new Uint32Array([1])
+    })).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "INVALID_REGION_BRANCH_TABLE",
+        message: "region branch range tables must have the same length as regionType."
+      }
+    });
+  });
+
+  it("rejects mismatched region branch node tables", () => {
+    expect(createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      regionType: new Uint8Array([RegionType.CONDITIONAL]),
+      regionAnchorStart: new Uint32Array([INVALID_INDEX]),
+      regionAnchorEnd: new Uint32Array([INVALID_INDEX]),
+      regionBranchNodeStart: new Uint32Array([1]),
+      regionBranchNodeEnd: new Uint32Array(0)
+    })).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "INVALID_REGION_BRANCH_NODE_TABLE",
+        message: "region branch node start and end tables must have the same length."
+      }
+    });
+  });
+
+  it("rejects mismatched nested block region tables", () => {
+    expect(createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      regionType: new Uint8Array([RegionType.NESTED_BLOCK]),
+      regionAnchorStart: new Uint32Array([INVALID_INDEX]),
+      regionAnchorEnd: new Uint32Array([INVALID_INDEX]),
+      regionNestedBlockSlot: new Uint32Array(0),
+      regionNestedBlueprintSlot: new Uint32Array([1]),
+      regionNestedMountMode: new Uint8Array([0])
+    })).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "INVALID_REGION_NESTED_TABLE",
+        message: "nested block region tables must have the same length as regionType."
+      }
+    });
+  });
+
+  it("rejects node tables that do not match nodeCount", () => {
+    expect(createBlueprint({
+      nodeCount: 1,
+      nodeKind: new Uint8Array(0),
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0)
+    })).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "INVALID_NODE_TABLE",
+        message: "node tables must have the same length as nodeCount."
+      }
+    });
+  });
+
+  it("rejects binding node indexes that exceed nodeCount", () => {
+    expect(createBlueprint({
+      nodeCount: 1,
+      bindingOpcode: new Uint8Array([BindingOpcode.TEXT]),
+      bindingNodeIndex: new Uint32Array([2]),
+      bindingDataIndex: new Uint32Array([0]),
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0)
+    })).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BINDING_NODE_OUT_OF_RANGE",
+        message: "Binding node index 2 is out of range for nodeCount 1."
+      }
+    });
+  });
+
+  it("creates an empty blueprint", () => {
+    expect(createEmptyBlueprint()).toEqual({
+      nodeCount: 0,
+      bindingCount: 0,
+      regionCount: 0,
+      nodeKind: new Uint8Array(0),
+      nodePrimitiveRefIndex: new Uint32Array(0),
+      nodeTextRefIndex: new Uint32Array(0),
+      nodeParentIndex: new Uint32Array(0),
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      bindingArgU32: new Uint32Array(0),
+      bindingArgRef: [],
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0),
+      regionBranchRangeStart: new Uint32Array(0),
+      regionBranchRangeCount: new Uint32Array(0),
+      regionBranchNodeStart: new Uint32Array(0),
+      regionBranchNodeEnd: new Uint32Array(0),
+      regionNestedBlockSlot: new Uint32Array(0),
+      regionNestedBlueprintSlot: new Uint32Array(0),
+      regionNestedMountMode: new Uint8Array(0),
+      signalToBindingStart: new Uint32Array(0),
+      signalToBindingCount: new Uint32Array(0),
+      signalToBindings: new Uint32Array(0)
+    });
+  });
+});

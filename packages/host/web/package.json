@@ -15,7 +15,11 @@
     "@jue/shared": "workspace:*"
   },
   "scripts": {
-    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('../../../node_modules/.cache/jue/web',{recursive:true,force:true})\" && esbuild src/index.ts --bundle --format=esm --platform=browser --target=esnext --external:@jue/runtime-core --external:@jue/shared --outfile=dist/index.js --sourcemap && esbuild src/index.ts --bundle --format=esm --platform=browser --target=esnext --external:@jue/runtime-core --external:@jue/shared --minify --outfile=dist/index.min.js && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
-  }
+    "build": "jue-cli",
+    "typecheck": "jue-cli"
+  },
+  "jueCli": [
+    { "phase": "build", "mode": "library", "platform": "browser", "minify": ["index"] },
+    { "phase": "typecheck", "mode": "tsc" }
+  ]
 }

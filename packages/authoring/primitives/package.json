@@ -11,7 +11,11 @@
     }
   },
   "scripts": {
-    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('../../../node_modules/.cache/jue/primitives',{recursive:true,force:true})\" && esbuild src/index.ts --bundle --format=esm --platform=neutral --target=esnext --outfile=dist/index.js --sourcemap && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
-  }
+    "build": "jue-cli",
+    "typecheck": "jue-cli"
+  },
+  "jueCli": [
+    { "phase": "build", "mode": "library", "platform": "neutral", "minify": false },
+    { "phase": "typecheck", "mode": "tsc" }
+  ]
 }

@@ -16,7 +16,11 @@
     "@jue/shared": "workspace:*"
   },
   "scripts": {
-    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('../../../node_modules/.cache/jue/query',{recursive:true,force:true})\" && esbuild src/index.ts --bundle --format=esm --platform=node --target=esnext --external:@jue/runtime-core --external:@jue/shared --external:@jue/devtrace --outfile=dist/index.js --sourcemap && tsc -p tsconfig.build.json --emitDeclarationOnly --outDir dist",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
-  }
+    "build": "jue-cli",
+    "typecheck": "jue-cli"
+  },
+  "jueCli": [
+    { "phase": "build", "mode": "library", "platform": "node", "minify": false },
+    { "phase": "typecheck", "mode": "tsc" }
+  ]
 }

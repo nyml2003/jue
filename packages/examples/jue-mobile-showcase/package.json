@@ -7,14 +7,23 @@
     "compile:mp": "pnpm --dir ../../.. --filter @jue/skyline run build && tsx scripts/generate-miniprogram.ts",
     "compile": "pnpm run compile:web && pnpm run compile:mp",
     "dev:web": "pnpm run compile:web && vite --config vite.config.ts",
-    "build:web": "pnpm run compile:web && vite build --config vite.config.ts",
+    "build:web": "jue-cli",
     "lint:generated": "tsx scripts/check-generated.ts && tsc -p tsconfig.generated.json --noEmit --pretty false",
-    "typecheck": "tsc -p tsconfig.json --noEmit --pretty false"
+    "typecheck": "jue-cli"
+  },
+  "dependencies": {
+    "@jue/jsx": "workspace:*",
+    "@jue/runtime-core": "workspace:*",
+    "@jue/web": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
     "tsx": "^4.19.3",
     "typescript": "^5.8.3",
     "vite": "^6.4.2"
-  }
+  },
+  "jueCli": [
+    { "phase": "build:web", "mode": "vite", "preBuild": "pnpm run compile:web" },
+    { "phase": "typecheck", "mode": "tsc", "pretty": false }
+  ]
 }
