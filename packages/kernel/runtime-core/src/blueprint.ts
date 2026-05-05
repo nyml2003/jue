@@ -38,6 +38,16 @@ export interface BlueprintError {
   readonly message: string;
 }
 
+/**
+ * 校验并规范化编译器产物，生成运行时使用的 blueprint。
+ *
+ * @description
+ * 这个函数会补齐可选表的默认值，并在返回前校验表长、
+ * 节点索引和 region 元数据之间的基本一致性。
+ *
+ * @param input 编译器或测试构造出的原始 blueprint 表。
+ * @returns 已补齐可选表默认值的 blueprint。
+ */
 export function createBlueprint(input: CreateBlueprintInput): Result<Blueprint, BlueprintError> {
   const {
     nodeCount,
@@ -166,6 +176,15 @@ export function createBlueprint(input: CreateBlueprintInput): Result<Blueprint, 
   });
 }
 
+/**
+ * 创建一个零尺寸的空 blueprint，适合测试或哨兵值场景。
+ *
+ * @description
+ * 返回值里的所有 typed array 都会被显式分配成长度 0，
+ * 这样上层不需要为“字段是否存在”再写额外分支。
+ *
+ * @returns 所有表长度都为 0 的空 blueprint。
+ */
 export function createEmptyBlueprint(): Blueprint {
   return {
     nodeCount: 0,
@@ -196,6 +215,12 @@ export function createEmptyBlueprint(): Blueprint {
   };
 }
 
+/**
+ * 创建一个按节点数分配、并填充为无效索引哨兵值的表。
+ *
+ * @param nodeCount 要分配的槽位数。
+ * @returns 所有项都初始化为 `INVALID_INDEX` 的表。
+ */
 function fillInvalidNodeTable(nodeCount: number): Uint32Array {
   const table = new Uint32Array(nodeCount);
   table.fill(INVALID_INDEX);

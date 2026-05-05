@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { BindingOpcode, INVALID_INDEX, RegionLifecycle } from "@jue/shared";
+import { BindingOpcode, INVALID_INDEX, RegionLifecycle, RegionType } from "@jue/shared";
 import { createBlueprintBuilder } from "@jue/compiler";
 import { createBlueprint } from "@jue/runtime-core";
 import { describe, expect, it } from "vitest";
@@ -842,6 +842,480 @@ describe("@jue/web mountTree", () => {
     });
   });
 
+  it("batches signal writes, remounts ranges, and rejects remounting under an unmounted parent", () => {
+    const root = document.createElement("div");
+    const builder = createBlueprintBuilder();
+    builder.setSignalCount(2);
+    builder.setInitialSignalValues(["A", "B"]);
+
+    const parent = builder.element("View");
+    const first = builder.text("");
+    const second = builder.text("");
+    expect(builder.append(parent, first).ok).toBe(true);
+    expect(builder.append(parent, second).ok).toBe(true);
+    builder.bindText(first, 0);
+    builder.bindText(second, 1);
+
+    const lowered = builder.buildBlueprint();
+    expect(lowered.ok).toBe(true);
+    if (!lowered.ok) {
+      return;
+    }
+
+    const mountedResult = mountTree({
+      blueprint: lowered.value.blueprint,
+      root,
+      signalCount: lowered.value.signalCount,
+      initialSignalValues: lowered.value.initialSignalValues
+    });
+    expect(mountedResult.ok).toBe(true);
+    if (!mountedResult.ok) {
+      return;
+    }
+
+    expect(mountedResult.value.flushInitialBindings().ok).toBe(true);
+    expect(root.textContent).toBe("AB");
+
+    expect(mountedResult.value.setSignals([[0, "A"], [1, "B"]])).toEqual({
+      ok: true,
+      value: {
+        batchId: 1,
+        flushedBindingCount: 0
+      },
+      error: null
+    });
+
+    expect(mountedResult.value.setSignals([[0, "X"], [1, "Y"]]).ok).toBe(true);
+    expect(root.textContent).toBe("XY");
+
+    expect(mountedResult.value.disposeRange(1, 2).ok).toBe(true);
+    expect(root.textContent).toBe("");
+
+    expect(mountedResult.value.mountRange(1, 2).ok).toBe(true);
+    expect(root.textContent).toBe("XY");
+
+    expect(mountedResult.value.disposeRange(0, 2).ok).toBe(true);
+    expect(mountedResult.value.mountRange(1, 2)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_PARENT_UNMOUNTED",
+        message: "Blueprint node 1 references parent 0, but that parent is not mounted."
+      }
+    });
+  });
+
+  it("re-inserts ranges before the next mounted sibling anchor and reports missing parent nodes", () => {
+    const root = document.createElement("div");
+    const builder = createBlueprintBuilder();
+    const parent = builder.element("View");
+    const first = builder.text("A");
+    const second = builder.text("B");
+    const third = builder.text("C");
+    expect(builder.append(parent, first).ok).toBe(true);
+    expect(builder.append(parent, second).ok).toBe(true);
+    expect(builder.append(parent, third).ok).toBe(true);
+
+    const lowered = builder.buildBlueprint();
+    expect(lowered.ok).toBe(true);
+    if (!lowered.ok) {
+      return;
+    }
+
+    const mountedResult = mountTree({
+      blueprint: lowered.value.blueprint,
+      root,
+      signalCount: lowered.value.signalCount
+    });
+    expect(mountedResult.ok).toBe(true);
+    if (!mountedResult.ok) {
+      return;
+    }
+
+    expect(root.textContent).toBe("ABC");
+    expect(mountedResult.value.disposeRange(1, 1).ok).toBe(true);
+    expect(root.textContent).toBe("BC");
+    expect(mountedResult.value.mountRange(1, 1).ok).toBe(true);
+    expect(root.textContent).toBe("ABC");
+
+    expect(mountedResult.value.disposeRange(1, 1).ok).toBe(true);
+    (mountedResult.value.nodes as unknown as Array<unknown>)[0] = undefined;
+    expect(mountedResult.value.mountRange(1, 1)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_PARENT_MISSING",
+        message: "Blueprint node 1 references missing parent index 0."
+      }
+    });
+  });
+
+  it("reports missing region roots once the anchor range has been disposed", () => {
+    const root = document.createElement("div");
+    const builder = createBlueprintBuilder();
+    const parent = builder.element("View");
+    const before = builder.text("(");
+    const end = builder.text(")");
+    expect(builder.append(parent, before).ok).toBe(true);
+    expect(builder.append(parent, end).ok).toBe(true);
+    builder.defineKeyedListRegion({
+      anchorStartNode: before,
+      anchorEndNode: end
+    });
+
+    const lowered = builder.buildBlueprint();
+    expect(lowered.ok).toBe(true);
+    if (!lowered.ok) {
+      return;
+    }
+
+    const mountedResult = mountTree({
+      blueprint: lowered.value.blueprint,
+      root,
+      signalCount: lowered.value.signalCount
+    });
+    expect(mountedResult.ok).toBe(true);
+    if (!mountedResult.ok) {
+      return;
+    }
+
+    expect(mountedResult.value.disposeRange(1, 2).ok).toBe(true);
+    expect(mountedResult.value.regions.keyedList(0).attach([
+      keyedTextItem("a", "A")
+    ])).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_REGION_ROOT_MISSING",
+        message: "Region 0 could not resolve a mounted host root."
+      }
+    });
+
+    expect(mountedResult.value.regions.virtualList(0).attach({
+      itemCount: 1,
+      windowStart: 0,
+      cells: [virtualTextCell("A0")]
+    })).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_REGION_ROOT_MISSING",
+        message: "Region 0 could not resolve a mounted host root."
+      }
+    });
+  });
+
+  it("reports missing child roots when a nested blueprint has no concrete nodes", () => {
+    const root = document.createElement("div");
+    const parentBuilder = createBlueprintBuilder();
+    const parent = parentBuilder.element("View");
+    const before = parentBuilder.text("[");
+    const end = parentBuilder.text("]");
+    expect(parentBuilder.append(parent, before).ok).toBe(true);
+    expect(parentBuilder.append(parent, end).ok).toBe(true);
+    parentBuilder.defineNestedBlockRegion({
+      anchorStartNode: before,
+      anchorEndNode: end,
+      childBlockSlot: 0,
+      childBlueprintSlot: 0,
+      mountMode: "attach"
+    });
+
+    const parentLowered = parentBuilder.buildBlueprint();
+    const emptyChild = createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0)
+    });
+
+    expect(parentLowered.ok).toBe(true);
+    expect(emptyChild.ok).toBe(true);
+    if (!parentLowered.ok || !emptyChild.ok) {
+      return;
+    }
+
+    const mountedResult = mountTree({
+      blueprint: parentLowered.value.blueprint,
+      root,
+      signalCount: parentLowered.value.signalCount,
+      nestedBlueprints: [{
+        blueprint: emptyChild.value
+      }]
+    });
+    expect(mountedResult.ok).toBe(true);
+    if (!mountedResult.ok) {
+      return;
+    }
+
+    expect(mountedResult.value.regions.nested(0).attach()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_CHILD_ROOT_MISSING",
+        message: "Region 0 mounted child tree does not have a concrete root node."
+      }
+    });
+  });
+
+  it("disposes attached nested, keyed, and virtual list children through the root dispose flow", () => {
+    const root = document.createElement("div");
+    const builder = createBlueprintBuilder();
+    const parent = builder.element("View");
+    const nestedStart = builder.text("[");
+    const nestedEnd = builder.text("]");
+    const keyedStart = builder.text("(");
+    const keyedEnd = builder.text(")");
+    const virtualStart = builder.text("{");
+    const virtualEnd = builder.text("}");
+    expect(builder.append(parent, nestedStart).ok).toBe(true);
+    expect(builder.append(parent, nestedEnd).ok).toBe(true);
+    expect(builder.append(parent, keyedStart).ok).toBe(true);
+    expect(builder.append(parent, keyedEnd).ok).toBe(true);
+    expect(builder.append(parent, virtualStart).ok).toBe(true);
+    expect(builder.append(parent, virtualEnd).ok).toBe(true);
+    builder.defineNestedBlockRegion({
+      anchorStartNode: nestedStart,
+      anchorEndNode: nestedEnd,
+      childBlockSlot: 0,
+      childBlueprintSlot: 0,
+      mountMode: "attach"
+    });
+    builder.defineKeyedListRegion({
+      anchorStartNode: keyedStart,
+      anchorEndNode: keyedEnd
+    });
+    builder.defineVirtualListRegion({
+      anchorStartNode: virtualStart,
+      anchorEndNode: virtualEnd
+    });
+
+    const lowered = builder.buildBlueprint();
+    const child = createTextBlockBlueprint("child");
+    expect(lowered.ok).toBe(true);
+    expect(child.ok).toBe(true);
+    if (!lowered.ok || !child.ok) {
+      return;
+    }
+
+    const mountedResult = mountTree({
+      blueprint: lowered.value.blueprint,
+      root,
+      signalCount: lowered.value.signalCount,
+      nestedBlueprints: [child.value]
+    });
+    expect(mountedResult.ok).toBe(true);
+    if (!mountedResult.ok) {
+      return;
+    }
+
+    expect(mountedResult.value.regions.nested(0).attach().ok).toBe(true);
+    expect(mountedResult.value.regions.keyedList(1).attach([
+      keyedTextItem("a", "A")
+    ]).ok).toBe(true);
+    expect(mountedResult.value.regions.virtualList(2).attach({
+      itemCount: 1,
+      windowStart: 0,
+      cells: [virtualTextCell("V0")]
+    }).ok).toBe(true);
+
+    expect(mountedResult.value.dispose().ok).toBe(true);
+    expect(root.textContent).toBe("");
+    expect(mountedResult.value.dispose().ok).toBe(true);
+  });
+
+  it("rolls back partial keyed-list mounts and reconciles when a new child tree is malformed", () => {
+    const root = document.createElement("div");
+    const builder = createBlueprintBuilder();
+    const parent = builder.element("View");
+    const before = builder.text("(");
+    const end = builder.text(")");
+    expect(builder.append(parent, before).ok).toBe(true);
+    expect(builder.append(parent, end).ok).toBe(true);
+    builder.defineKeyedListRegion({
+      anchorStartNode: before,
+      anchorEndNode: end
+    });
+
+    const lowered = builder.buildBlueprint();
+    const emptyBlueprint = createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0)
+    });
+    expect(lowered.ok).toBe(true);
+    expect(emptyBlueprint.ok).toBe(true);
+    if (!lowered.ok || !emptyBlueprint.ok) {
+      return;
+    }
+
+    const mountedResult = mountTree({
+      blueprint: lowered.value.blueprint,
+      root,
+      signalCount: lowered.value.signalCount
+    });
+    expect(mountedResult.ok).toBe(true);
+    if (!mountedResult.ok) {
+      return;
+    }
+
+    const list = mountedResult.value.regions.keyedList(0);
+    expect(list.attach([
+      keyedTextItem("a", "A"),
+      {
+        key: "broken",
+        blueprint: emptyBlueprint.value
+      }
+    ])).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_CHILD_ROOT_MISSING",
+        message: "Region 0 mounted child tree does not have a concrete root node."
+      }
+    });
+    expect(root.textContent).toBe("()");
+
+    expect(list.attach([
+      keyedTextItem("a", "A")
+    ]).ok).toBe(true);
+    expect(root.textContent).toBe("(A)");
+
+    expect(list.reconcile([
+      keyedTextItem("a", "A"),
+      {
+        key: "broken",
+        blueprint: emptyBlueprint.value
+      }
+    ])).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_CHILD_ROOT_MISSING",
+        message: "Region 0 mounted child tree does not have a concrete root node."
+      }
+    });
+    expect(root.textContent).toBe("(A)");
+  });
+
+  it("rolls back partial virtual-list mounts and reports malformed update cells", () => {
+    const root = document.createElement("div");
+    const builder = createBlueprintBuilder();
+    const parent = builder.element("View");
+    const before = builder.text("items:");
+    const end = builder.text(":end");
+    expect(builder.append(parent, before).ok).toBe(true);
+    expect(builder.append(parent, end).ok).toBe(true);
+    builder.defineVirtualListRegion({
+      anchorStartNode: before,
+      anchorEndNode: end
+    });
+
+    const lowered = builder.buildBlueprint();
+    const emptyBlueprint = createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0)
+    });
+    expect(lowered.ok).toBe(true);
+    expect(emptyBlueprint.ok).toBe(true);
+    if (!lowered.ok || !emptyBlueprint.ok) {
+      return;
+    }
+
+    const mountedResult = mountTree({
+      blueprint: lowered.value.blueprint,
+      root,
+      signalCount: lowered.value.signalCount
+    });
+    expect(mountedResult.ok).toBe(true);
+    if (!mountedResult.ok) {
+      return;
+    }
+
+    const list = mountedResult.value.regions.virtualList(0);
+    expect(list.attach({
+      itemCount: 2,
+      windowStart: 0,
+      cells: [
+        virtualTextCell("A0"),
+        {
+          blueprint: emptyBlueprint.value,
+          initialSignalValues: []
+        }
+      ]
+    })).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_CHILD_ROOT_MISSING",
+        message: "Region 0 mounted child tree does not have a concrete root node."
+      }
+    });
+    expect(root.textContent).toBe("items::end");
+
+    expect(list.attach({
+      itemCount: 2,
+      windowStart: 0,
+      cells: [
+        virtualTextCell("A0"),
+        virtualTextCell("A1")
+      ]
+    }).ok).toBe(true);
+
+    expect(list.updateWindow({
+      itemCount: 2,
+      windowStart: 0,
+      cells: [
+        virtualTextCell("B0"),
+        undefined as unknown as ReturnType<typeof virtualTextCell>
+      ]
+    })).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_VIRTUAL_LIST_UPDATE_REJECTED",
+        message: "Virtual list region 0 rejected window update."
+      }
+    });
+
+    expect(list.updateWindow({
+      itemCount: 3,
+      windowStart: 1,
+      cells: [
+        virtualTextCell("C0"),
+        virtualTextCell("C1")
+      ]
+    }).ok).toBe(true);
+
+    expect(list.updateWindow({
+      itemCount: 3,
+      windowStart: 1,
+      cells: [
+        virtualTextCell("D0"),
+        undefined as unknown as ReturnType<typeof virtualTextCell>
+      ]
+    })).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_VIRTUAL_LIST_UPDATE_REJECTED",
+        message: "Virtual list region 0 rejected window update."
+      }
+    });
+  });
+
   it("rejects signal initialization that exceeds signalCount", () => {
     const blueprintResult = createBlueprint({
       nodeCount: 0,
@@ -1413,6 +1887,379 @@ describe("@jue/web mountTree", () => {
       error: {
         code: "MOUNT_TREE_VIRTUAL_LIST_WINDOW_SIZE_CHANGED",
         message: "Virtual list minimal controller requires a stable visible cell count."
+      }
+    });
+  });
+
+  it("rejects invalid conditional branch transitions", () => {
+    const root = document.createElement("div");
+    const builder = createBlueprintBuilder();
+    const parent = builder.element("View");
+    const a = builder.text("A");
+    const b = builder.text("B");
+    expect(builder.append(parent, a).ok).toBe(true);
+    expect(builder.append(parent, b).ok).toBe(true);
+    builder.defineConditionalRegion({
+      anchorStartNode: a,
+      anchorEndNode: b,
+      branches: [
+        { startNode: a, endNode: a },
+        { startNode: b, endNode: b }
+      ]
+    });
+
+    const lowered = builder.buildBlueprint();
+    expect(lowered.ok).toBe(true);
+    if (!lowered.ok) {
+      return;
+    }
+
+    const mountedResult = mountTree({
+      blueprint: lowered.value.blueprint,
+      root,
+      signalCount: lowered.value.signalCount
+    });
+    expect(mountedResult.ok).toBe(true);
+    if (!mountedResult.ok) {
+      return;
+    }
+
+    expect(mountedResult.value.regions.conditional(0).attach(9)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_CONDITIONAL_ATTACH_REJECTED",
+        message: "Conditional region 0 rejected attach for branch 9."
+      }
+    });
+
+    expect(mountedResult.value.regions.conditional(0).attach(0).ok).toBe(true);
+    expect(mountedResult.value.regions.conditional(0).switchTo(9)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_CONDITIONAL_SWITCH_FAILED",
+        message: "Conditional region 0 failed while switching to branch 9."
+      }
+    });
+  });
+
+  it("rejects duplicate nested and keyed-list attaches and clearing inactive keyed lists", () => {
+    const root = document.createElement("div");
+    const builder = createBlueprintBuilder();
+    const parent = builder.element("View");
+    const nestedStart = builder.text("[");
+    const nestedEnd = builder.text("]");
+    const keyedStart = builder.text("(");
+    const keyedEnd = builder.text(")");
+    expect(builder.append(parent, nestedStart).ok).toBe(true);
+    expect(builder.append(parent, nestedEnd).ok).toBe(true);
+    expect(builder.append(parent, keyedStart).ok).toBe(true);
+    expect(builder.append(parent, keyedEnd).ok).toBe(true);
+    builder.defineNestedBlockRegion({
+      anchorStartNode: nestedStart,
+      anchorEndNode: nestedEnd,
+      childBlockSlot: 0,
+      childBlueprintSlot: 0,
+      mountMode: "attach"
+    });
+    builder.defineKeyedListRegion({
+      anchorStartNode: keyedStart,
+      anchorEndNode: keyedEnd
+    });
+
+    const lowered = builder.buildBlueprint();
+    const child = createTextBlockBlueprint("child");
+    expect(lowered.ok).toBe(true);
+    expect(child.ok).toBe(true);
+    if (!lowered.ok || !child.ok) {
+      return;
+    }
+
+    const mountedResult = mountTree({
+      blueprint: lowered.value.blueprint,
+      root,
+      signalCount: lowered.value.signalCount,
+      nestedBlueprints: [child.value]
+    });
+    expect(mountedResult.ok).toBe(true);
+    if (!mountedResult.ok) {
+      return;
+    }
+
+    expect(mountedResult.value.regions.keyedList(1).clear()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_KEYED_LIST_CLEAR_REJECTED",
+        message: "Keyed list region 1 rejected clear."
+      }
+    });
+
+    expect(mountedResult.value.regions.nested(0).attach().ok).toBe(true);
+    expect(mountedResult.value.regions.nested(0).attach()).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_NESTED_ATTACH_REJECTED",
+        message: "Nested region 0 rejected attach."
+      }
+    });
+
+    expect(mountedResult.value.regions.keyedList(1).attach([
+      keyedTextItem("a", "A")
+    ]).ok).toBe(true);
+    expect(mountedResult.value.regions.keyedList(1).attach([
+      keyedTextItem("b", "B")
+    ])).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_KEYED_LIST_ATTACH_REJECTED",
+        message: "Keyed list region 1 rejected attach."
+      }
+    });
+
+    expect(mountedResult.value.regions.keyedList(1).reconcile([
+      keyedTextItem("dup", "A"),
+      keyedTextItem("dup", "B")
+    ])).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_KEYED_LIST_DUPLICATE_KEY",
+        message: "Keyed list region 1 received duplicate key dup."
+      }
+    });
+  });
+
+  it("cancels nested replace when the next child tree is malformed", () => {
+    const root = document.createElement("div");
+    const builder = createBlueprintBuilder();
+    const parent = builder.element("View");
+    const before = builder.text("[");
+    const end = builder.text("]");
+    expect(builder.append(parent, before).ok).toBe(true);
+    expect(builder.append(parent, end).ok).toBe(true);
+    builder.defineNestedBlockRegion({
+      anchorStartNode: before,
+      anchorEndNode: end,
+      childBlockSlot: 0,
+      childBlueprintSlot: 0,
+      mountMode: "attach"
+    });
+
+    const lowered = builder.buildBlueprint();
+    const validChild = createTextBlockBlueprint("child");
+    const emptyBlueprint = createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0)
+    });
+    expect(lowered.ok).toBe(true);
+    expect(validChild.ok).toBe(true);
+    expect(emptyBlueprint.ok).toBe(true);
+    if (!lowered.ok || !validChild.ok || !emptyBlueprint.ok) {
+      return;
+    }
+
+    const mountedResult = mountTree({
+      blueprint: lowered.value.blueprint,
+      root,
+      signalCount: lowered.value.signalCount,
+      nestedBlueprints: [
+        {
+          ...validChild.value,
+          nestedBlueprints: []
+        },
+        {
+          blueprint: emptyBlueprint.value
+        }
+      ]
+    });
+    expect(mountedResult.ok).toBe(true);
+    if (!mountedResult.ok) {
+      return;
+    }
+
+    expect(mountedResult.value.regions.nested(0).attach().ok).toBe(true);
+    expect(root.textContent).toBe("[child]");
+
+    expect(mountedResult.value.regions.nested(0).replace(1, 1)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_CHILD_ROOT_MISSING",
+        message: "Region 0 mounted child tree does not have a concrete root node."
+      }
+    });
+    expect(root.textContent).toBe("[child]");
+  });
+
+  it("rejects malformed region initialization and missing anchors", () => {
+    const root = document.createElement("div");
+    const missingAnchorBlueprint = createBlueprint({
+      nodeCount: 1,
+      nodeKind: new Uint8Array([1]),
+      nodePrimitiveRefIndex: new Uint32Array([0]),
+      nodeTextRefIndex: new Uint32Array([INVALID_INDEX]),
+      nodeParentIndex: new Uint32Array([INVALID_INDEX]),
+      bindingArgRef: ["View"],
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      regionType: new Uint8Array([RegionType.KEYED_LIST]),
+      regionAnchorStart: new Uint32Array([INVALID_INDEX]),
+      regionAnchorEnd: new Uint32Array([INVALID_INDEX])
+    });
+    expect(missingAnchorBlueprint.ok).toBe(true);
+    if (!missingAnchorBlueprint.ok) {
+      return;
+    }
+
+    const mountedResult = mountTree({
+      blueprint: missingAnchorBlueprint.value,
+      root,
+      signalCount: 0
+    });
+    expect(mountedResult.ok).toBe(true);
+    if (!mountedResult.ok) {
+      return;
+    }
+
+    expect(mountedResult.value.regions.keyedList(0).attach([
+      keyedTextItem("a", "A")
+    ])).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_REGION_ANCHOR_MISSING",
+        message: "Region 0 does not have a concrete anchor end."
+      }
+    });
+
+    expect(mountedResult.value.regions.virtualList(0).attach({
+      itemCount: 1,
+      windowStart: 0,
+      cells: [virtualTextCell("A0")]
+    })).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_REGION_ANCHOR_MISSING",
+        message: "Region 0 does not have a concrete anchor end."
+      }
+    });
+
+    const missingAnchorNodeBlueprint = createBlueprint({
+      nodeCount: 1,
+      nodeKind: new Uint8Array([1]),
+      nodePrimitiveRefIndex: new Uint32Array([0]),
+      nodeTextRefIndex: new Uint32Array([INVALID_INDEX]),
+      nodeParentIndex: new Uint32Array([INVALID_INDEX]),
+      bindingArgRef: ["View"],
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      regionType: new Uint8Array([RegionType.KEYED_LIST]),
+      regionAnchorStart: new Uint32Array([0]),
+      regionAnchorEnd: new Uint32Array([1])
+    });
+    expect(missingAnchorNodeBlueprint.ok).toBe(true);
+    if (!missingAnchorNodeBlueprint.ok) {
+      return;
+    }
+
+    const missingAnchorNodeMounted = mountTree({
+      blueprint: missingAnchorNodeBlueprint.value,
+      root,
+      signalCount: 0
+    });
+    expect(missingAnchorNodeMounted.ok).toBe(true);
+    if (!missingAnchorNodeMounted.ok) {
+      return;
+    }
+
+    expect(missingAnchorNodeMounted.value.regions.keyedList(0).attach([
+      keyedTextItem("a", "A")
+    ])).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_REGION_ROOT_MISSING",
+        message: "Region 0 could not resolve a mounted host root."
+      }
+    });
+  });
+
+  it("rejects malformed primitive/text reference values even when ref indexes exist", () => {
+    const root = document.createElement("div");
+
+    const wrongPrimitive = createBlueprint({
+      nodeCount: 1,
+      nodeKind: new Uint8Array([1]),
+      nodePrimitiveRefIndex: new Uint32Array([0]),
+      nodeTextRefIndex: new Uint32Array([INVALID_INDEX]),
+      nodeParentIndex: new Uint32Array([INVALID_INDEX]),
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      bindingArgRef: [123],
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0)
+    });
+    expect(wrongPrimitive.ok).toBe(true);
+    if (!wrongPrimitive.ok) {
+      return;
+    }
+
+    expect(mountTree({
+      blueprint: wrongPrimitive.value,
+      root,
+      signalCount: 0
+    })).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_PRIMITIVE_MISSING",
+        message: "Blueprint node 0 references missing primitive at ref slot 0."
+      }
+    });
+
+    const wrongText = createBlueprint({
+      nodeCount: 1,
+      nodeKind: new Uint8Array([2]),
+      nodePrimitiveRefIndex: new Uint32Array([INVALID_INDEX]),
+      nodeTextRefIndex: new Uint32Array([0]),
+      nodeParentIndex: new Uint32Array([INVALID_INDEX]),
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      bindingArgRef: [123],
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0)
+    });
+    expect(wrongText.ok).toBe(true);
+    if (!wrongText.ok) {
+      return;
+    }
+
+    expect(mountTree({
+      blueprint: wrongText.value,
+      root,
+      signalCount: 0
+    })).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "MOUNT_TREE_TEXT_MISSING",
+        message: "Blueprint node 0 references missing text at ref slot 0."
       }
     });
   });

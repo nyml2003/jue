@@ -12,41 +12,94 @@
  *   No changes to this file needed.
  */
 
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve, dirname, extname, basename } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { parsePhaseInvocation } from "./cli-argv";
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-async function main(): Promise<void> {
-  const phase = process.argv[2] || process.env.npm_lifecycle_event;
+export interface CliTask {
+  phase?: string;
+  mode?: string;
+  [key: string]: unknown;
+}
+
+export interface CliMainDeps {
+  argv: string[];
+  error: (...args: unknown[]) => void;
+  exit: (code: number) => never;
+  fileExists: (path: string) => boolean;
+  importModule: (specifier: string) => Promise<{ run?: (config: any) => Promise<void> }>;
+  lifecycleEvent: string | undefined;
+  modeFiles: string[];
+  modesDir: string;
+  pkgText: string;
+}
+
+export function collectAvailableModes(modeFiles: string[]): Set<string> {
+  return new Set(
+    modeFiles
+      .filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"))
+      .map((file) => basename(file, extname(file))),
+  );
+}
+
+function defaultExit(code: number): never {
+  process.exit(code);
+}
+
+export async function main(deps: Partial<CliMainDeps> = {}): Promise<void> {
+  const {
+    argv = process.argv.slice(2),
+    error = console.error,
+    exit = defaultExit,
+    fileExists = existsSync,
+    importModule = async (specifier) => import(specifier),
+    lifecycleEvent = process.env.npm_lifecycle_event,
+    modeFiles = readdirSync(resolve(__dirname, "cli-modes")),
+    modesDir = resolve(__dirname, "cli-modes"),
+    pkgText = readFileSync("package.json", "utf-8"),
+  } = deps;
+
+  const { phase, forwardedArgs } = parsePhaseInvocation(argv, lifecycleEvent);
   if (!phase) {
-    console.error("Usage: jue-cli <phase>");
-    console.error("Or run via npm script (phase inferred from npm_lifecycle_event).");
-    process.exit(1);
+    error("Usage: jue-cli <phase>");
+    error("Or run via npm script (phase inferred from npm_lifecycle_event).");
+    exit(1);
   }
 
-  const pkg = JSON.parse(readFileSync("package.json", "utf-8"));
-  const jueCli: Array<{ phase: string; mode: string; [key: string]: any }> =
-    pkg.jueCli || [];
+  const pkg = JSON.parse(pkgText);
+  const jueCli: CliTask[] = pkg.jueCli || [];
   const tasks = jueCli.filter((t) => t.phase === phase);
 
   if (tasks.length === 0) {
-    console.error(`No jueCli task found for phase: "${phase}".`);
-    console.error(
+    error(`No jueCli task found for phase: "${phase}".`);
+    error(
       `Configured phases: ${jueCli.map((t) => t.phase).join(", ") || "none"}.`,
     );
-    process.exit(1);
+    exit(1);
   }
 
-  const modesDir = resolve(__dirname, "cli-modes");
   const modes = new Map<string, (config: any) => Promise<void>>();
+  const availableModes = collectAvailableModes(modeFiles);
+  const requestedModeNames = tasks
+    .map((task) => task.mode)
+    .filter((modeName): modeName is string => typeof modeName === "string");
 
-  for (const file of readdirSync(modesDir)) {
-    if (!file.endsWith(".ts")) continue;
-    const modeName = basename(file, extname(file));
-    const fileUrl = pathToFileURL(resolve(modesDir, file)).href;
-    const module = await import(fileUrl);
+  for (const modeName of new Set(requestedModeNames)) {
+    if (!availableModes.has(modeName)) {
+      continue;
+    }
+
+    const modeFile = resolve(modesDir, `${modeName}.ts`);
+    if (!fileExists(modeFile)) {
+      continue;
+    }
+
+    const fileUrl = pathToFileURL(modeFile).href;
+    const module = await importModule(fileUrl);
     if (typeof module.run === "function") {
       modes.set(modeName, module.run);
     }
@@ -54,24 +107,32 @@ async function main(): Promise<void> {
 
   for (const task of tasks) {
     if (!task.mode) {
-      console.error(
+      error(
         `jueCli task for phase "${phase}" is missing required "mode" field.`,
       );
-      process.exit(1);
+      exit(1);
+      continue;
     }
     const handler = modes.get(task.mode);
     if (!handler) {
-      console.error(
+      error(
         `Unknown mode: "${task.mode}" for phase "${phase}". ` +
-          `Available modes: ${[...modes.keys()].join(", ")}.`,
+          `Available modes: ${[...availableModes].join(", ")}.`,
       );
-      process.exit(1);
+      exit(1);
+      continue;
     }
-    await handler(task);
+    await handler({
+      ...task,
+      $args: forwardedArgs,
+      $phase: phase,
+    });
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

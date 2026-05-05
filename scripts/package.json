@@ -4,5 +4,8 @@
   "private": true,
   "bin": {
     "jue-cli": "bin/jue-cli.js"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2"
   }
 }

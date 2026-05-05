@@ -39,13 +39,13 @@
         "./packages/kernel/compiler/src/frontend/index.ts"
       ],
       "@jue/compiler/ir": [
-        "./packages/kernel/compiler/src/ir.ts"
+        "./packages/kernel/compiler/src/block-ir.ts"
       ],
       "@jue/compiler/lowering": [
-        "./packages/kernel/compiler/src/lowering.ts"
+        "./packages/kernel/compiler/src/block-ir.ts"
       ],
       "@jue/compiler/builder": [
-        "./packages/kernel/compiler/src/builder.ts"
+        "./packages/kernel/compiler/src/blueprint-builder.ts"
       ],
       "@jue/jsx": [
         "./packages/authoring/jsx/src/index.ts"
@@ -95,6 +95,9 @@
       "@jue/lab/bench": [
         "./packages/tooling/lab/src/bench.ts"
       ]
-    }
-  }
+    },
+    "types": [
+      "node"
+    ]
+  },
 }

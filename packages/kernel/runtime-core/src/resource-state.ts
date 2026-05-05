@@ -14,6 +14,16 @@ export interface ResourceStateError {
   readonly message: string;
 }
 
+/**
+ * 为运行时资源分配按槽位平铺的状态表。
+ *
+ * @description
+ * 资源状态把请求状态、所属 lane、版本号和结果引用拆开放在多张表里，
+ * 这样异步资源更新可以和 signal 一样沿着 slot 直接定位。
+ *
+ * @param resourceCount 要分配的资源槽位数。
+ * @returns status 与 version 都已清零的资源状态。
+ */
 export function createResourceState(resourceCount: number): ResourceState {
   return {
     status: new Uint8Array(resourceCount),
@@ -25,6 +35,18 @@ export function createResourceState(resourceCount: number): ResourceState {
   };
 }
 
+/**
+ * 为一个资源槽位启动新的请求周期。
+ *
+ * @description
+ * 这个调用会推进 version、增加 pending 计数，并把状态切到 `PENDING`。
+ * 后续成功或失败提交都必须携带这里返回的 version token。
+ *
+ * @param state 要写入的资源状态。
+ * @param slot 资源槽位索引。
+ * @param lane 这次请求所属的调度 lane。
+ * @returns 请求完成时必须匹配的 version token。
+ */
 export function beginResourceRequest(
   state: ResourceState,
   slot: number,
@@ -46,6 +68,18 @@ export function beginResourceRequest(
   return ok(nextVersion);
 }
 
+/**
+ * 为匹配 version 的请求提交成功结果。
+ *
+ * @description
+ * 如果提交版本落后于当前版本，函数会拒绝写入，避免旧请求覆盖新请求结果。
+ *
+ * @param state 要写入的资源状态。
+ * @param slot 资源槽位索引。
+ * @param version 正在完成的请求 version。
+ * @param value 请求成功返回的值。
+ * @returns 提交被接受时返回 `true`。
+ */
 export function commitResourceValue(
   state: ResourceState,
   slot: number,
@@ -73,6 +107,18 @@ export function commitResourceValue(
   return ok(true);
 }
 
+/**
+ * 为匹配 version 的请求提交失败结果。
+ *
+ * @description
+ * 失败提交与成功提交遵循同一套版本门控，防止过期错误把更新中的资源重新打回错误态。
+ *
+ * @param state 要写入的资源状态。
+ * @param slot 资源槽位索引。
+ * @param version 正在完成的请求 version。
+ * @param errorValue 要保存到槽位中的错误值。
+ * @returns 提交被接受时返回 `true`。
+ */
 export function commitResourceError(
   state: ResourceState,
   slot: number,
@@ -99,6 +145,13 @@ export function commitResourceError(
   return ok(true);
 }
 
+/**
+ * 校验资源槽位是否存在于当前状态表中。
+ *
+ * @param state 正在访问的资源状态。
+ * @param slot 资源槽位索引。
+ * @returns 槽位在范围内时返回成功。
+ */
 function validateResourceSlot(state: ResourceState, slot: number): Result<void, ResourceStateError> {
   if (slot < 0 || slot >= state.status.length) {
     return err({

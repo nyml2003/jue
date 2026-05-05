@@ -42,7 +42,7 @@ describe("@jue/compiler compileModule", () => {
     expect(result.value.code).toContain("export const signalSlots");
     expect(result.value.code).toContain("configureSignalRuntime");
     expect(result.value.code).toContain("const title = __jueCreateSignalRef(\"title\");");
-    expect(result.value.code).toContain("handlers: { \"handlePress\": handlePress, \"readPressed\": readPressed }");
+    expect(result.value.handlerNames).toEqual(["handlePress", "readPressed"]);
     expect(result.value.code).toContain("\"handlePress\": handlePress");
     expect(result.value.code).toContain("createBlueprint");
     expect(result.value.blueprint.bindingOpcode).toContain(0);
@@ -220,7 +220,7 @@ describe("@jue/compiler compileModule", () => {
     }
 
     expect(result.value.code).toContain("import { createRouter } from \"@jue/router\";");
-    expect(result.value.code).toContain("const count = __jueCreateSignalRef(\"count\");");
+    expect(result.value.code).toMatch(/const count = __jueCreateSignalRef(?:<[^>]+>)?\("count"\);/);
     expect(result.value.runtimeCode).not.toContain("const count = signal(0);");
     expect(result.value.runtimeCode).toContain("const router = createRouter");
     expect(result.value.code).not.toContain("export const handlers");
@@ -252,7 +252,7 @@ describe("@jue/compiler compileModule", () => {
       return;
     }
 
-    expect(result.value.code).toContain("const count = __jueCreateSignalRef(\"count\");");
+    expect(result.value.code).not.toMatch(/const count = __jueCreateSignalRef/);
     expect(result.value.runtimeCode).not.toContain("const count = signal(0)");
     expect(result.value.runtimeCode).toContain("const router = createRouter");
     expect(result.value.signalSlots).toEqual({ count: 0 });
@@ -274,7 +274,6 @@ describe("@jue/compiler compileModule", () => {
       return;
     }
 
-    expect(result.value.code).toContain("const count = __jueCreateSignalRef(\"count\");");
     expect(result.value.runtimeCode).not.toContain("const count = s(0);");
     expect(result.value.signalSlots).toEqual({ count: 0 });
   });

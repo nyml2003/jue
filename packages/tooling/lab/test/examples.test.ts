@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { benchmarkExampleCompilation } from "../src/index";
 import { DEFAULT_WEB_PLAYGROUND_APPS_ROOT, createExampleAppDefinition, getExampleAppDefinition, listExampleApps } from "../src/examples";
 
 describe("@jue/lab/examples", () => {
@@ -33,5 +34,10 @@ describe("@jue/lab/examples", () => {
 
     expect(example.id).toBe("virtual-list-lab");
     expect(example.runtimeEntryPath).toContain("page.ts");
+  });
+
+  it("re-exports helper APIs from the lab package root", async () => {
+    const benchmark = await benchmarkExampleCompilation("account-overview", 1);
+    expect(benchmark.ok).toBe(true);
   });
 });

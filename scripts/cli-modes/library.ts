@@ -22,7 +22,7 @@ export async function run(cfg: LibraryBuildConfig): Promise<void> {
   const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
 
   const platform = cfg.platform || "neutral";
-  const externals = deriveExternals(pkg, cwd);
+  const externals = deriveExternals(pkg, cwd, platform);
   const entries = deriveEntries(pkg, cfg.extraEntries || []);
   const minifySet = new Set(
     cfg.minify === false ? [] : (cfg.minify ?? ["index"]),
@@ -117,14 +117,26 @@ function deriveEntries(
 function deriveExternals(
   pkg: Record<string, any>,
   cwd: string,
+  platform: string,
 ): string[] {
   const externals = new Set<string>();
   const deps = Object.keys(pkg.dependencies || {});
-
   const jueDeps = deps.filter((d) => d.startsWith("@jue/"));
-  for (const dep of jueDeps) {
-    externals.add(dep);
 
+  if (platform === "node") {
+    // Node 平台：所有 dependencies 都 externalize，避免 CJS/ESM 混合问题
+    for (const dep of deps) {
+      externals.add(dep);
+    }
+  } else {
+    // Browser / neutral 平台：只 externalize @jue/ workspace 依赖
+    for (const dep of jueDeps) {
+      externals.add(dep);
+    }
+  }
+
+  // 为 @jue/ 依赖添加 subpath exports
+  for (const dep of jueDeps) {
     const depPkgPath = resolve(cwd, "node_modules", dep, "package.json");
     if (!existsSync(depPkgPath)) continue;
 

@@ -2,14 +2,19 @@ import { resolve } from "node:path";
 
 import { defineConfig } from "vitest/config";
 
+import {
+  readVitestCoverageIncludeOverride,
+  readVitestIncludeOverride,
+} from "./scripts/vitest-overrides";
+
 const workspaceAliases = {
   "@jue/runtime-core/reactivity": resolve(__dirname, "packages/kernel/runtime-core/src/reactivity.ts"),
   "@jue/runtime-core/host-contract": resolve(__dirname, "packages/kernel/runtime-core/src/host-contract.ts"),
   "@jue/runtime-core/channel": resolve(__dirname, "packages/kernel/runtime-core/src/channel.ts"),
   "@jue/compiler/frontend": resolve(__dirname, "packages/kernel/compiler/src/frontend/index.ts"),
-  "@jue/compiler/ir": resolve(__dirname, "packages/kernel/compiler/src/ir.ts"),
-  "@jue/compiler/lowering": resolve(__dirname, "packages/kernel/compiler/src/lowering.ts"),
-  "@jue/compiler/builder": resolve(__dirname, "packages/kernel/compiler/src/builder.ts"),
+  "@jue/compiler/ir": resolve(__dirname, "packages/kernel/compiler/src/block-ir.ts"),
+  "@jue/compiler/lowering": resolve(__dirname, "packages/kernel/compiler/src/block-ir.ts"),
+  "@jue/compiler/builder": resolve(__dirname, "packages/kernel/compiler/src/blueprint-builder.ts"),
   "@jue/shared": resolve(__dirname, "packages/kernel/shared/src/index.ts"),
   "@jue/runtime-core": resolve(__dirname, "packages/kernel/runtime-core/src/index.ts"),
   "@jue/compiler": resolve(__dirname, "packages/kernel/compiler/src/index.ts"),
@@ -36,9 +41,11 @@ export default defineConfig({
   },
   test: {
     alias: workspaceAliases,
-    include: [
+    include: readVitestIncludeOverride() ?? [
       "packages/**/*.test.ts",
       "packages/**/*.test.tsx",
+      "scripts/**/*.test.ts",
+      "scripts/**/*.test.tsx",
       "examples/**/*.test.ts",
       "examples/**/*.test.tsx"
     ],
@@ -49,7 +56,7 @@ export default defineConfig({
         "text",
         "json-summary"
       ],
-      include: [
+      include: readVitestCoverageIncludeOverride() ?? [
         "packages/kernel/compiler/src/block-ir.ts",
         "packages/kernel/compiler/src/blueprint-builder.ts"
       ],

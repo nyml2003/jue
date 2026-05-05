@@ -2,6 +2,11 @@ import { BindingOpcode, INVALID_INDEX, Lane, RegionLifecycle, RegionType, Resour
 import { describe, expect, it } from "vitest";
 
 import {
+  createSignalState as createSignalStateFromReactivity,
+  scheduleSignalWrite as scheduleSignalWriteFromReactivity,
+  writeSignal as writeSignalFromReactivity
+} from "../src/reactivity";
+import {
   attachConditionalRegion,
   attachKeyedListRegion,
   attachNestedBlockRegion,
@@ -169,6 +174,47 @@ describe("@jue/runtime-core", () => {
     expect(state.version[0]).toBe(1);
   });
 
+  it("re-exports signal helpers through the reactivity subpath", () => {
+    const state = createSignalStateFromReactivity(1);
+
+    expect(writeSignalFromReactivity(state, 0, "reactive")).toEqual({
+      ok: true,
+      value: true,
+      error: null
+    });
+
+    const blueprintResult = createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0),
+      signalToBindingStart: new Uint32Array([0]),
+      signalToBindingCount: new Uint32Array([0]),
+      signalToBindings: new Uint32Array(0)
+    });
+    expect(blueprintResult.ok).toBe(true);
+    if (!blueprintResult.ok) {
+      return;
+    }
+
+    const instance = createBlockInstance(blueprintResult.value, {
+      signalCount: 1
+    });
+    const scheduler = createSchedulerState();
+
+    expect(scheduleSignalWriteFromReactivity(instance, scheduler, Lane.VISIBLE_UPDATE, 0, "reactive")).toEqual({
+      ok: true,
+      value: {
+        changed: true,
+        enqueuedBindingCount: 0
+      },
+      error: null
+    });
+  });
+
   it("tracks resource versions and commits values", () => {
     const state = createResourceState(1);
     const begin = beginResourceRequest(state, 0, Lane.VISIBLE_UPDATE);
@@ -277,6 +323,96 @@ describe("@jue/runtime-core", () => {
       error: null
     });
     expect(scheduler.bindingQueueData).toEqual([0, 2, 1]);
+  });
+
+  it("reports malformed signal dependency metadata", () => {
+    const missingRangeBlueprint = createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0)
+    });
+    expect(missingRangeBlueprint.ok).toBe(true);
+    if (!missingRangeBlueprint.ok) {
+      return;
+    }
+
+    const missingRangeInstance = createBlockInstance(missingRangeBlueprint.value, {
+      signalCount: 1
+    });
+    const scheduler = createSchedulerState();
+
+    expect(scheduleSignalWrite(missingRangeInstance, scheduler, Lane.VISIBLE_UPDATE, 0, "x")).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "SIGNAL_BINDING_RANGE_MISSING",
+        message: "Signal slot 0 has no binding range metadata."
+      }
+    });
+
+    const missingSlotBlueprint = createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0),
+      signalToBindingStart: new Uint32Array([0]),
+      signalToBindingCount: new Uint32Array([1]),
+      signalToBindings: new Uint32Array(0)
+    });
+    expect(missingSlotBlueprint.ok).toBe(true);
+    if (!missingSlotBlueprint.ok) {
+      return;
+    }
+
+    const missingSlotInstance = createBlockInstance(missingSlotBlueprint.value, {
+      signalCount: 1
+    });
+
+    expect(scheduleSignalWrite(missingSlotInstance, scheduler, Lane.VISIBLE_UPDATE, 0, "x")).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "SIGNAL_BINDING_SLOT_MISSING",
+        message: "Signal slot 0 references a missing binding slot at offset 0."
+      }
+    });
+
+    const dirtyOverflowBlueprint = createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array(0),
+      bindingNodeIndex: new Uint32Array(0),
+      bindingDataIndex: new Uint32Array(0),
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0),
+      signalToBindingStart: new Uint32Array([0]),
+      signalToBindingCount: new Uint32Array([1]),
+      signalToBindings: new Uint32Array([2])
+    });
+    expect(dirtyOverflowBlueprint.ok).toBe(true);
+    if (!dirtyOverflowBlueprint.ok) {
+      return;
+    }
+
+    const dirtyOverflowInstance = createBlockInstance(dirtyOverflowBlueprint.value, {
+      signalCount: 1
+    });
+
+    expect(scheduleSignalWrite(dirtyOverflowInstance, scheduler, Lane.VISIBLE_UPDATE, 0, "x")).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "DIRTY_SLOT_OUT_OF_RANGE",
+        message: "Dirty bit slot 2 is out of range for size 0."
+      }
+    });
   });
 
   it("creates a block instance from a blueprint", () => {

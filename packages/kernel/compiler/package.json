@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "type": "module",
   "main": "./dist/index.js",
+  "bin": {
+    "jue-compile": "./dist/cli.js"
+  },
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
@@ -10,20 +13,20 @@
       "import": "./dist/index.js"
     },
     "./builder": {
-      "types": "./dist/builder.d.ts",
-      "import": "./dist/builder.js"
+      "types": "./dist/blueprint-builder.d.ts",
+      "import": "./dist/blueprint-builder.js"
     },
     "./frontend": {
       "types": "./dist/frontend/index.d.ts",
       "import": "./dist/frontend/index.js"
     },
     "./ir": {
-      "types": "./dist/ir.d.ts",
-      "import": "./dist/ir.js"
+      "types": "./dist/block-ir.d.ts",
+      "import": "./dist/block-ir.js"
     },
     "./lowering": {
-      "types": "./dist/lowering.d.ts",
-      "import": "./dist/lowering.js"
+      "types": "./dist/block-ir.d.ts",
+      "import": "./dist/block-ir.js"
     }
   },
   "dependencies": {
@@ -40,10 +43,12 @@
   },
   "scripts": {
     "build": "jue-cli",
+    "test": "jue-cli",
     "typecheck": "jue-cli"
   },
   "jueCli": [
-    { "phase": "build", "mode": "library", "platform": "node", "minify": ["index", "frontend"] },
-    { "phase": "typecheck", "mode": "tsc" }
+    { "phase": "build", "mode": "library", "platform": "node", "minify": ["index", "frontend"], "extraEntries": ["src/cli.ts"] },
+    { "phase": "typecheck", "mode": "tsc" },
+    { "phase": "test", "mode": "test", "coverageConfig": "vitest.coverage-all.config.ts" }
   ]
 }

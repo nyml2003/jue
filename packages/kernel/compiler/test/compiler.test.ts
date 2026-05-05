@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { createBlueprintBuilder, lowerBlockIRToBlueprint, type BlockIR } from "../src/index";
-import { compile } from "../src/frontend/index";
+import { buildBlockIR, createBlueprintBuilder, lowerBlockIRToBlueprint, type BlockIR } from "../src/index";
+import { compile, compileSourceToBlockIR } from "../src/frontend/index";
 
 describe("@jue/compiler", () => {
   it("lowers a minimal BlockIR into an executable blueprint", () => {
@@ -270,6 +270,51 @@ describe("@jue/compiler", () => {
         message: `Node ${child} is already attached to parent ${parent}.`
       }
     });
+  });
+
+  it("reports missing child, missing parent, and self-cycle append attempts", () => {
+    const builder = createBlueprintBuilder();
+    const parent = builder.element("View");
+    const child = builder.text("hello");
+
+    expect(builder.append(parent, 99)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_CHILD_MISSING",
+        message: "Cannot append missing node 99 to parent 0."
+      }
+    });
+
+    expect(builder.append(42, child)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_PARENT_MISSING",
+        message: "Cannot append to missing parent node 42."
+      }
+    });
+
+    expect(builder.append(parent, parent)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BUILDER_CYCLE_SELF",
+        message: "Node 0 cannot be appended to itself."
+      }
+    });
+  });
+
+  it("throws from buildBlockIR when the builder callback leaves an invalid tree", () => {
+    expect(() => buildBlockIR((builder) => {
+      builder.defineConditionalRegion({
+        anchorStartNode: 9,
+        anchorEndNode: 9,
+        branches: [
+          { startNode: 9, endNode: 9 }
+        ]
+      });
+    })).toThrow("[buildBlockIR] BUILDER_EMPTY_BLOCK: A block must contain at least one node.");
   });
 
   it("reports builder validation errors before lowering", () => {
@@ -1279,6 +1324,407 @@ describe("@jue/compiler", () => {
     }
 
     expect(Array.from(result.value.signalToBindingCount)).toEqual([1]);
+  });
+
+  it("supports negative numeric and mapper-free Array.from signal initializers", () => {
+    const result = compile(`
+      import { Text, View, signal } from "@jue/jsx";
+
+      export function render() {
+        const offset = signal(-2);
+        const rows = signal(Array.from(["a", "b"]));
+        return <View><Text>{offset.get()}</Text><Text>{rows.get()}</Text></View>;
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(Array.from(result.value.signalToBindingCount)).toEqual([1, 1]);
+  });
+
+  it("rejects signal declarations with invalid arity and sparse array initializers", () => {
+    expect(compile(`
+      import { View, signal } from "@jue/jsx";
+
+      export function render() {
+        const value = signal();
+        return <View />;
+      }
+    `)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_SIGNAL_DECLARATION",
+        message: "Signal value must call signal() with exactly one initial value."
+      }
+    });
+
+    expect(compile(`
+      import { View, signal } from "@jue/jsx";
+
+      export function render() {
+        const value = signal([, "x"]);
+        return <View />;
+      }
+    `)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_SIGNAL_INITIALIZER",
+        message: "compile() does not support sparse or spread array signal() initializers."
+      }
+    });
+  });
+
+  it("rejects unsupported Array.from mapper shapes in signal initializers", () => {
+    expect(compile(`
+      import { View, signal } from "@jue/jsx";
+
+      export function render() {
+        const value = signal(Array.from({ length: 1 }, (...args) => args.length));
+        return <View />;
+      }
+    `)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_SIGNAL_INITIALIZER",
+        message: "compile() only supports identifier params in Array.from() signal() mappers."
+      }
+    });
+
+    expect(compile(`
+      import { View, signal } from "@jue/jsx";
+
+      export function render() {
+        const value = signal(Array.from({ length: 1 }, item => { return item; }));
+        return <View />;
+      }
+    `)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_SIGNAL_INITIALIZER",
+        message: "compile() only supports expression-bodied arrow mappers in Array.from() signal() initializers."
+      }
+    });
+  });
+
+  it("rejects unsupported object and Array.from signal initializer shapes", () => {
+    expect(compile(`
+      import { View, signal } from "@jue/jsx";
+
+      export function render() {
+        const field = "key";
+        const value = signal({ [field]: "x" });
+        return <View />;
+      }
+    `)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_SIGNAL_INITIALIZER",
+        message: "compile() only supports plain object signal() initializers."
+      }
+    });
+
+    expect(compile(`
+      import { View, signal } from "@jue/jsx";
+
+      export function render() {
+        const value = signal(Array.from({}));
+        return <View />;
+      }
+    `)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_SIGNAL_INITIALIZER",
+        message: "compile() requires Array.from() object sources to define a static length."
+      }
+    });
+
+    expect(compile(`
+      import { View, signal } from "@jue/jsx";
+
+      export function render() {
+        const value = signal(Array.from({ length: -1 }));
+        return <View />;
+      }
+    `)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_SIGNAL_INITIALIZER",
+        message: "compile() requires Array.from() length to be a non-negative integer."
+      }
+    });
+  });
+
+  it("rejects conditional children that do not lower to JSX branches", () => {
+    const result = compile(`
+      import { View, Text, signal } from "@jue/jsx";
+
+      export function render() {
+        const visible = signal(true);
+        return <View>{visible.get() ? <Text>on</Text> : "off"}</View>;
+      }
+    `);
+
+    expect(result).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_REGION_PATTERN",
+        message: "compile() currently only supports conditional JSX of the form cond ? <A /> : <B />."
+      }
+    });
+  });
+
+  it("rejects unsupported structure primitives and malformed Show usage", () => {
+    expect(compile(`
+      import { Boundary, View } from "@jue/jsx";
+
+      export function render() {
+        return <View><Boundary /></View>;
+      }
+    `)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_COMPONENT_CALL",
+        message: "compile() does not support <Boundary> yet."
+      }
+    });
+
+    expect(compile(`
+      import { Show, Text, View, signal } from "@jue/jsx";
+
+      export function render() {
+        const visible = signal(true);
+        return (
+          <View>
+            <Show when={visible.get()}>
+              <Text>on</Text>
+              <Text>extra</Text>
+            </Show>
+          </View>
+        );
+      }
+    `)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_COMPONENT_CALL",
+        message: "compile() requires <Show> to define a single JSX element child."
+      }
+    });
+
+    expect(compile(`
+      import { Show, Text, View, signal } from "@jue/jsx";
+
+      export function render() {
+        const visible = signal(true);
+        return (
+          <View>
+            <Show when={visible.get()} fallback={"off"}>
+              <Text>on</Text>
+            </Show>
+          </View>
+        );
+      }
+    `)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_COMPONENT_CALL",
+        message: "compile() requires <Show>.fallback to be a JSX element or null."
+      }
+    });
+  });
+
+  it("normalizes onClick handlers and ignores nullish static JSX children", () => {
+    const result = compile(`
+      import { Button, View } from "@jue/jsx";
+
+      function handlePress() {}
+
+      export function render() {
+        return <View>{null}{false}<Button onClick={handlePress}>go</Button></View>;
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.value.bindingArgRef).toContain("onPress");
+  });
+
+  it("supports template item property paths with string and numeric segments", () => {
+    const result = compileSourceToBlockIR(`
+      import { List, Text, View, signal } from "@jue/jsx";
+
+      export function render() {
+        const items = signal([
+          { id: "a", labels: [{ value: "Alpha" }] }
+        ]);
+
+        return (
+          <View>
+            <List each={items.get()} by={item => item.id}>
+              {item => <Text>{item["labels"][0].value}</Text>}
+            </List>
+          </View>
+        );
+      }
+    `);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    const listDescriptor = result.value.structures[0];
+    expect(listDescriptor?.kind).toBe("keyed-list");
+    expect(listDescriptor?.template.signalPaths).toEqual([["labels", "0", "value"]]);
+  });
+
+  it("rejects malformed template callback paths and nested structure primitives", () => {
+    expect(compile(`
+      import { List, Show, Text, View, signal } from "@jue/jsx";
+
+      export function render() {
+        const items = signal([{ id: "a", label: "Alpha" }]);
+        return (
+          <View>
+            <List each={items.get()} by={item => item.id}>
+              {item => (
+                <Show when={true}>
+                  <Text>{item.label}</Text>
+                </Show>
+              )}
+            </List>
+          </View>
+        );
+      }
+    `)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_ROOT_SHAPE",
+        message: "compile() currently requires JSX tag <Show> to appear inside a host element."
+      }
+    });
+
+    expect(compile(`
+      import { List, Text, View, signal } from "@jue/jsx";
+
+      export function render() {
+        const items = signal([{ id: "a", label: "Alpha" }]);
+        const segment = "label";
+        return (
+          <View>
+            <List each={items.get()} by={item => item.id}>
+              {item => <Text>{item[segment]}</Text>}
+            </List>
+          </View>
+        );
+      }
+    `)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_EXPRESSION",
+        message: "compile() currently only supports signal.get() reads or literal expressions, got MemberExpression."
+      }
+    });
+  });
+
+  it("rejects unsupported style object values and keys", () => {
+    expect(compile(`
+      import { View } from "@jue/jsx";
+
+      export function render() {
+        return <View style={{ width: null }} />;
+      }
+    `)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_STYLE_OBJECT",
+        message: "compile() does not support style.width with null value."
+      }
+    });
+
+    expect(compile(`
+      import { View } from "@jue/jsx";
+
+      export function render() {
+        return <View style={{ 1: "x" }} />;
+      }
+    `)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_STYLE_OBJECT",
+        message: "compile() only supports identifier or string style property keys."
+      }
+    });
+  });
+
+  it("rejects template literal expressions in JSX text children", () => {
+    expect(compile(`
+      import { Text, View, signal } from "@jue/jsx";
+
+      export function render() {
+        const label = signal("hello");
+        return <View><Text>{\`row \${label.get()}\`}</Text></View>;
+      }
+    `)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_EXPRESSION",
+        message: "compile() does not support template literals with expressions yet."
+      }
+    });
+  });
+
+  it("rejects member and namespaced JSX tags", () => {
+    expect(compile(`
+      import { View } from "@jue/jsx";
+
+      const UI = { View };
+
+      export function render() {
+        return <UI.View />;
+      }
+    `)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_COMPONENT_CALL",
+        message: "compile() does not support component/member JSX tags yet."
+      }
+    });
+
+    expect(compile(`
+      export function render() {
+        return <svg:path />;
+      }
+    `)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "UNSUPPORTED_COMPONENT_CALL",
+        message: "compile() does not support component/member JSX tags yet."
+      }
+    });
   });
 
   it("supports template literal signal initializers with static interpolation", () => {

@@ -1,0 +1,22 @@
+{
+  "name": "my-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "compile:web": "pnpm --dir ../../.. exec tsx packages/kernel/compiler/src/cli.ts --input ./packages/examples/my-demo/src/app.component.tsx --output ./packages/examples/my-demo/browser/src/generated/app.generated.ts --root-symbol App",
+    "dev:web": "pnpm run compile:web && pnpm --dir ../../.. exec vite --config packages/examples/my-demo/vite.config.ts",
+    "build:web": "pnpm run compile:web && pnpm --dir ../../.. exec vite build --config packages/examples/my-demo/vite.config.ts",
+    "typecheck": "pnpm run compile:web && pnpm --dir ../../.. exec tsc -p packages/examples/my-demo/tsconfig.json --noEmit --pretty false"
+  },
+  "dependencies": {
+    "@jue/jsx": "workspace:*",
+    "@jue/runtime-core": "workspace:*",
+    "@jue/web": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3",
+    "vite": "^6.4.2"
+  }
+}

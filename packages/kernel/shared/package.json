@@ -12,10 +12,12 @@
   },
   "scripts": {
     "build": "jue-cli",
+    "test": "jue-cli",
     "typecheck": "jue-cli"
   },
   "jueCli": [
     { "phase": "build", "mode": "library", "platform": "neutral", "minify": ["index"] },
-    { "phase": "typecheck", "mode": "tsc" }
+    { "phase": "typecheck", "mode": "tsc" },
+    { "phase": "test", "mode": "test", "coverageConfig": "vitest.coverage-all.config.ts" }
   ]
 }

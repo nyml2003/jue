@@ -471,4 +471,280 @@ describe("@jue/runtime-core dispatchBinding", () => {
 
     expect(calls).toEqual([{ regionSlot: 2, branchIndex: 1 }]);
   });
+
+  it("reports prop and style metadata gaps before touching the adapter", () => {
+    const propDataMissing = createBlueprint({
+      nodeCount: 1,
+      bindingOpcode: new Uint8Array([BindingOpcode.PROP]),
+      bindingNodeIndex: new Uint32Array([0]),
+      bindingDataIndex: new Uint32Array([99]),
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0)
+    });
+    expect(propDataMissing.ok).toBe(true);
+    if (!propDataMissing.ok) {
+      return;
+    }
+
+    const propInstance = createBlockInstance(propDataMissing.value, {
+      signalCount: 1,
+      nodes: [createHostNode()]
+    });
+    const adapter = createAdapter();
+
+    expect(dispatchBinding(propInstance, adapter, 0)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "PROP_BINDING_SIGNAL_MISSING",
+        message: "Prop binding 0 references missing signal slot undefined."
+      }
+    });
+
+    const styleBlueprint = createBlueprint({
+      nodeCount: 2,
+      bindingOpcode: new Uint8Array([
+        BindingOpcode.STYLE,
+        BindingOpcode.STYLE,
+        BindingOpcode.STYLE
+      ]),
+      bindingNodeIndex: new Uint32Array([INVALID_INDEX, 1, 0]),
+      bindingDataIndex: new Uint32Array([0, 0, 2]),
+      bindingArgU32: new Uint32Array([0, 0, 0]),
+      bindingArgRef: ["width"],
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0)
+    });
+    expect(styleBlueprint.ok).toBe(true);
+    if (!styleBlueprint.ok) {
+      return;
+    }
+
+    const styleInstance = createBlockInstance(styleBlueprint.value, {
+      signalCount: 1,
+      nodes: [createHostNode()]
+    });
+
+    expect(dispatchBinding(styleInstance, adapter, 0)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "STYLE_BINDING_NODE_MISSING",
+        message: "Style binding 0 has no concrete node target."
+      }
+    });
+
+    expect(dispatchBinding(styleInstance, adapter, 1)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "STYLE_BINDING_NODE_UNRESOLVED",
+        message: "Style binding 1 references missing node index 1."
+      }
+    });
+
+    expect(dispatchBinding(styleInstance, adapter, 2)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "STYLE_BINDING_KEY_INDEX_MISSING",
+        message: "Style binding 2 is missing a style key reference index."
+      }
+    });
+  });
+
+  it("normalizes text values and surfaces adapter failures for text and event bindings", () => {
+    const textBlueprint = createBlueprint({
+      nodeCount: 1,
+      bindingOpcode: new Uint8Array([BindingOpcode.TEXT, BindingOpcode.EVENT]),
+      bindingNodeIndex: new Uint32Array([0, 0]),
+      bindingDataIndex: new Uint32Array([0, 1]),
+      bindingArgU32: new Uint32Array([0, 0, 1]),
+      bindingArgRef: ["onPress", null],
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0)
+    });
+    expect(textBlueprint.ok).toBe(true);
+    if (!textBlueprint.ok) {
+      return;
+    }
+
+    const node = createHostNode();
+    const instance = createBlockInstance(textBlueprint.value, {
+      signalCount: 1,
+      nodes: [node]
+    });
+    const adapter = createAdapter();
+
+    instance.signalValues[0] = Symbol("named");
+    expect(dispatchBinding(instance, adapter, 0).ok).toBe(true);
+    expect((adapter.setText as ReturnType<typeof vi.fn>).mock.calls.at(-1)).toEqual([node, "named"]);
+
+    instance.signalValues[0] = { hello: "world" };
+    expect(dispatchBinding(instance, adapter, 0).ok).toBe(true);
+    expect((adapter.setText as ReturnType<typeof vi.fn>).mock.calls.at(-1)).toEqual([node, "[object Object]"]);
+
+    expect(dispatchBinding(instance, adapter, 1).ok).toBe(true);
+    expect((adapter.setEvent as ReturnType<typeof vi.fn>).mock.calls.at(-1)).toEqual([node, "onPress", null]);
+
+    const brokenTextAdapter = createAdapter({
+      setText: vi.fn(() => ({
+        ok: false as const,
+        value: null,
+        error: {
+          code: "BROKEN_TEXT_ADAPTER",
+          message: "text failed"
+        }
+      }))
+    });
+
+    expect(dispatchBinding(instance, brokenTextAdapter, 0)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BROKEN_TEXT_ADAPTER",
+        message: "text failed"
+      }
+    });
+
+    const missingHandlerBlueprint = createBlueprint({
+      nodeCount: 1,
+      bindingOpcode: new Uint8Array([BindingOpcode.EVENT]),
+      bindingNodeIndex: new Uint32Array([0]),
+      bindingDataIndex: new Uint32Array([0]),
+      bindingArgU32: new Uint32Array([0]),
+      bindingArgRef: ["onPress"],
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0)
+    });
+    expect(missingHandlerBlueprint.ok).toBe(true);
+    if (!missingHandlerBlueprint.ok) {
+      return;
+    }
+
+    const missingHandlerInstance = createBlockInstance(missingHandlerBlueprint.value, {
+      signalCount: 0,
+      nodes: [node]
+    });
+
+    expect(dispatchBinding(missingHandlerInstance, adapter, 0)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "EVENT_BINDING_HANDLER_INDEX_MISSING",
+        message: "Event binding 0 is missing an event handler reference index."
+      }
+    });
+  });
+
+  it("reports region switch metadata and hook failures", () => {
+    const missingData = createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array([BindingOpcode.REGION_SWITCH]),
+      bindingNodeIndex: new Uint32Array([INVALID_INDEX]),
+      bindingDataIndex: new Uint32Array([99]),
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0)
+    });
+    expect(missingData.ok).toBe(true);
+    if (!missingData.ok) {
+      return;
+    }
+
+    const emptyInstance = createBlockInstance(missingData.value, {
+      signalCount: 1
+    });
+    const adapter = createAdapter();
+
+    expect(dispatchBinding(emptyInstance, adapter, 0)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "REGION_SWITCH_SIGNAL_MISSING",
+        message: "Region switch binding 0 references missing signal slot undefined."
+      }
+    });
+
+    const switchBlueprint = createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array([BindingOpcode.REGION_SWITCH]),
+      bindingNodeIndex: new Uint32Array([INVALID_INDEX]),
+      bindingDataIndex: new Uint32Array([0]),
+      bindingArgU32: new Uint32Array([0, 1, 2, 3]),
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0)
+    });
+    expect(switchBlueprint.ok).toBe(true);
+    if (!switchBlueprint.ok) {
+      return;
+    }
+
+    const switchInstance = createBlockInstance(switchBlueprint.value, {
+      signalCount: 1
+    });
+    switchInstance.signalValues[0] = true;
+
+    expect(dispatchBinding(switchInstance, adapter, 0)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "REGION_SWITCH_UNSUPPORTED",
+        message: "Region switch binding 0 requires a conditional-region switch hook."
+      }
+    });
+
+    expect(dispatchBinding(switchInstance, adapter, 0, {
+      switchConditionalRegion() {
+        return {
+          ok: false,
+          value: null,
+          error: {
+            code: "BROKEN_REGION_SWITCH",
+            message: "switch failed"
+          }
+        };
+      }
+    })).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "BROKEN_REGION_SWITCH",
+        message: "switch failed"
+      }
+    });
+
+    const missingBranchBlueprint = createBlueprint({
+      nodeCount: 0,
+      bindingOpcode: new Uint8Array([BindingOpcode.REGION_SWITCH]),
+      bindingNodeIndex: new Uint32Array([INVALID_INDEX]),
+      bindingDataIndex: new Uint32Array([0]),
+      bindingArgU32: new Uint32Array([0, 1, 2]),
+      regionType: new Uint8Array(0),
+      regionAnchorStart: new Uint32Array(0),
+      regionAnchorEnd: new Uint32Array(0)
+    });
+    expect(missingBranchBlueprint.ok).toBe(true);
+    if (!missingBranchBlueprint.ok) {
+      return;
+    }
+
+    const missingBranchInstance = createBlockInstance(missingBranchBlueprint.value, {
+      signalCount: 1
+    });
+
+    expect(dispatchBinding(missingBranchInstance, adapter, 0)).toEqual({
+      ok: false,
+      value: null,
+      error: {
+        code: "REGION_SWITCH_BRANCH_MISSING",
+        message: "Region switch binding 0 is missing branch metadata."
+      }
+    });
+  });
 });

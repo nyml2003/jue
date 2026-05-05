@@ -12,7 +12,8 @@
     "docs": "pnpm --filter @jue/docsgen docsgen",
     "lint": "jue-cli",
     "typecheck": "jue-cli",
-    "test": "node ./node_modules/vitest/vitest.mjs run",
+    "test": "jue-cli",
+    "test:scripts": "node ./node_modules/vitest/vitest.mjs run --config ./vitest.scripts.config.ts --coverage",
     "test:e2e": "pnpm --filter @jue/web-playground test:e2e",
     "dev": "pnpm --filter @jue/web-playground preview",
     "bench": "pnpm --filter @jue/lab bench"
@@ -20,7 +21,8 @@
   "jueCli": [
     { "phase": "build", "mode": "workspace", "post": "pnpm build:examples" },
     { "phase": "lint", "mode": "eslint" },
-    { "phase": "typecheck", "mode": "tsc", "tsconfig": "tsconfig.check.json", "pretty": false }
+    { "phase": "typecheck", "mode": "tsc", "tsconfig": "tsconfig.check.json", "pretty": false },
+    { "phase": "test", "mode": "test", "coverageConfig": "vitest.coverage-all.config.ts" }
   ],
   "devDependencies": {
     "jue-cli": "link:./scripts",

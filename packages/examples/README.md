@@ -1,8 +1,13 @@
-# mobile examples
+# examples
 
-这里放 `jue` 面向移动端场景的独立示例。
+这里放 `jue` 的独立示例。
 
 当前包含：
+
+- `my-demo`
+  - 一个最小的浏览器示例
+  - 单文件 TSX authoring source
+  - 最小挂载链路，适合看最基础用法
 
 - `jue-mobile-showcase`
   - 同一份 TSX authoring source

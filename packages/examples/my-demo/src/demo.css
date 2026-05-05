@@ -1,0 +1,146 @@
+.my-demo-page {
+  min-height: 100vh;
+  margin: 0;
+  padding: 36px 20px;
+  background:
+    radial-gradient(circle at top left, rgba(255, 209, 102, 0.42), transparent 34%),
+    radial-gradient(circle at bottom right, rgba(74, 144, 226, 0.18), transparent 30%),
+    linear-gradient(180deg, #fffaf2 0%, #f1ece4 100%);
+  color: #1f1a14;
+  font-family: "Segoe UI", sans-serif;
+}
+
+.my-demo-shell {
+  width: min(440px, 100%);
+  margin: 0 auto;
+}
+
+.my-demo-panel {
+  padding: 26px;
+  border: 1px solid #d8c8b5;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 22px 48px rgba(57, 37, 12, 0.12);
+}
+
+.my-demo-eyebrow {
+  margin-bottom: 8px;
+  color: #8b5a1d;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.my-demo-title {
+  margin-bottom: 10px;
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.my-demo-body {
+  margin-bottom: 6px;
+  color: #2b241d;
+  line-height: 1.4;
+}
+
+.my-demo-support {
+  margin-bottom: 18px;
+  color: #6a5846;
+  line-height: 1.5;
+}
+
+.my-demo-field {
+  margin-bottom: 14px;
+}
+
+.my-demo-label {
+  display: block;
+  margin-bottom: 6px;
+  color: #5b4938;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.my-demo-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d6c6b4;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fffdfa;
+  color: #1f1a14;
+}
+
+.my-demo-helper {
+  margin-bottom: 10px;
+  color: #8a6c3d;
+  font-size: 13px;
+}
+
+.my-demo-status {
+  margin-bottom: 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.my-demo-status--idle {
+  color: #6b5a48;
+}
+
+.my-demo-status--pending {
+  color: #8b5a1d;
+}
+
+.my-demo-status--success {
+  color: #1f6b47;
+}
+
+.my-demo-status--error {
+  color: #9b2c2c;
+}
+
+.my-demo-button {
+  width: 100%;
+  border: 0;
+  border-radius: 999px;
+  padding: 13px 18px;
+  margin-bottom: 16px;
+  background: #1f1a14;
+  color: #fff8ef;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.my-demo-result {
+  border-radius: 14px;
+  padding: 14px;
+  border: 1px solid #d8c8b5;
+  background: #f7f1e8;
+}
+
+.my-demo-result--idle {
+  background: #f7f1e8;
+}
+
+.my-demo-result--success {
+  background: #edf8f1;
+  border-color: #b9dcc5;
+}
+
+.my-demo-result--error {
+  background: #fff0f0;
+  border-color: #e4bcbc;
+}
+
+.my-demo-result-title {
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.my-demo-result-body {
+  color: #5c4a39;
+  line-height: 1.5;
+}

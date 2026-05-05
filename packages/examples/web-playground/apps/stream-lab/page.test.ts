@@ -35,4 +35,29 @@ describe("@jue/example-app stream-lab", () => {
 
     expect(mountedResult.value.dispose().ok).toBe(true);
   });
+
+  it("keeps imperative helpers safe when the root is not an Element", () => {
+    const root = document.createDocumentFragment();
+    const mountedResult = mountStreamLab(root);
+
+    expect(mountedResult.ok).toBe(true);
+    if (!mountedResult.ok) {
+      return;
+    }
+
+    mountedResult.value.recordWin();
+    mountedResult.value.recordFollowUp();
+    mountedResult.value.recordRisk();
+
+    expect(mountedResult.value.readSnapshot()).toEqual({
+      momentum: "",
+      wins: "",
+      followUps: "",
+      risks: "",
+      headline: "",
+      recommendation: ""
+    });
+
+    expect(mountedResult.value.dispose().ok).toBe(true);
+  });
 });

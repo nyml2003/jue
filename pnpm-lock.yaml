@@ -127,6 +127,9 @@ importers:
         specifier: workspace:*
         version: link:../../host/web
     devDependencies:
+      '@jue/compiler':
+        specifier: workspace:*
+        version: link:../../kernel/compiler
       '@playwright/test':
         specifier: ^1.55.0
         version: 1.59.1

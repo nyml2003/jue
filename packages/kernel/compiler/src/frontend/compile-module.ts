@@ -33,12 +33,6 @@ export interface CompileModuleOptions {
   readonly rootSymbol?: string;
 }
 
-export interface SignalRuntimeBridge {
-  read(name: string): unknown;
-  write(name: string, value: unknown): void;
-  update(name: string, updater: (value: unknown) => unknown): void;
-}
-
 function resolveGenerateFunction(value: unknown): GenerateFunction {
   if (typeof value === "function") {
     return value as GenerateFunction;
@@ -124,25 +118,62 @@ export function compileModule(
   const virtualListDescriptors = block.value.structures
     .filter((descriptor): descriptor is CompiledVirtualListDescriptor => descriptor.kind === "virtual-list")
     .map(serializeVirtualListDescriptor);
+
+  const runtimeCodeStr =
+    runtime.statements.length === 0
+      ? ""
+      : generate(t.file(t.program(runtime.statements))).code;
+
+  const blueprintStatements: t.Statement[] = [];
+  for (let i = 0; i < keyedListDescriptors.length; i++) {
+    blueprintStatements.push(
+      ...buildBlueprintVariableDeclarations(
+        `keyedListTemplate${i}`,
+        keyedListDescriptors[i]!.template.blueprint
+      )
+    );
+  }
+  for (let i = 0; i < virtualListDescriptors.length; i++) {
+    blueprintStatements.push(
+      ...buildBlueprintVariableDeclarations(
+        `virtualListTemplate${i}`,
+        virtualListDescriptors[i]!.template.blueprint
+      )
+    );
+  }
+  blueprintStatements.push(...buildBlueprintVariableDeclarations("blueprint", serialized));
+
+  const signalTypes = collectSignalTypes(ast, signalFactoryLocalNames);
+
+  const runtimeFunction = buildCreateRuntimeFunction(
+    block.value.signalSlots,
+    runtime.statements,
+    runtime.handlerNames,
+    signalTypes
+  );
+
+  const file = buildModuleFile({
+    imports: runtime.imports,
+    runtimeFunction,
+    blueprintStatements,
+    signalCount: lowered.value.signalCount,
+    signalSlots: block.value.signalSlots,
+    initialSignalValues: lowered.value.initialSignalValues,
+    keyedListDescriptors,
+    virtualListDescriptors
+  });
+
+  const code = generate(file).code;
+
   return ok({
-    code: createCompiledModuleCode({
-      blueprint: serialized,
-      signalCount: lowered.value.signalCount,
-      signalSlots: block.value.signalSlots,
-      initialSignalValues: lowered.value.initialSignalValues,
-      keyedListDescriptors,
-      virtualListDescriptors,
-      runtimeImportCode: runtime.importCode,
-      runtimeCode: runtime.code,
-      handlerNames: runtime.handlerNames
-    }),
+    code,
     blueprint: serialized,
     signalCount: lowered.value.signalCount,
     signalSlots: block.value.signalSlots,
     initialSignalValues: lowered.value.initialSignalValues,
     keyedListDescriptors,
     virtualListDescriptors,
-    runtimeCode: runtime.code,
+    runtimeCode: runtimeCodeStr,
     handlerNames: runtime.handlerNames
   });
 }
@@ -151,173 +182,648 @@ function createHandlerMarker(name: string): string {
   return `__jue_handler__:${name}`;
 }
 
-function createCompiledModuleCode(input: {
-  readonly blueprint: SerializedBlueprint;
+// ---------------------------------------------------------------------------
+// AST-first module assembly
+// ---------------------------------------------------------------------------
+
+function buildModuleFile(input: {
+  readonly imports: t.ImportDeclaration[];
+  readonly runtimeFunction: t.ExportNamedDeclaration;
+  readonly blueprintStatements: t.Statement[];
   readonly signalCount: number;
   readonly signalSlots: Readonly<Record<string, number>>;
   readonly initialSignalValues: readonly unknown[];
   readonly keyedListDescriptors: readonly SerializedKeyedListDescriptor[];
   readonly virtualListDescriptors: readonly SerializedVirtualListDescriptor[];
-  readonly runtimeImportCode: string;
-  readonly runtimeCode: string;
-  readonly handlerNames: readonly string[];
-}): string {
-  const templateDeclarations = [
-    ...input.keyedListDescriptors.map((descriptor, index) => ({
-      constName: `keyedListTemplate${index}`,
-      template: descriptor.template
-    })),
-    ...input.virtualListDescriptors.map((descriptor, index) => ({
-      constName: `virtualListTemplate${index}`,
-      template: descriptor.template
-    }))
-  ].map(declaration => createBlueprintDeclaration(declaration.constName, declaration.template.blueprint))
-    .join("\n\n");
-  const keyedListDescriptors = input.keyedListDescriptors
-    .map((descriptor, index) => `{
-      regionSlot: ${descriptor.regionSlot},
-      sourceSignalSlot: ${descriptor.sourceSignalSlot},
-      keyPath: ${JSON.stringify(descriptor.keyPath)},
-      template: {
-        blueprint: keyedListTemplate${index},
-        signalCount: ${descriptor.template.signalCount},
-        initialSignalValues: ${JSON.stringify(descriptor.template.initialSignalValues)},
-        signalPaths: ${JSON.stringify(descriptor.template.signalPaths)}
-      }
-    }`)
-    .join(",\n");
-  const virtualListDescriptors = input.virtualListDescriptors
-    .map((descriptor, index) => `{
-      regionSlot: ${descriptor.regionSlot},
-      sourceSignalSlot: ${descriptor.sourceSignalSlot},
-      keyPath: ${JSON.stringify(descriptor.keyPath)},
-      estimateSize: ${descriptor.estimateSize},
-      overscan: ${descriptor.overscan},
-      template: {
-        blueprint: virtualListTemplate${index},
-        signalCount: ${descriptor.template.signalCount},
-        initialSignalValues: ${JSON.stringify(descriptor.template.initialSignalValues)},
-        signalPaths: ${JSON.stringify(descriptor.template.signalPaths)}
-      }
-    }`)
-    .join(",\n");
-  const runtimeModuleCode = createRuntimeModuleCode(
-    input.signalSlots,
-    input.runtimeCode,
-    input.handlerNames
+}): t.File {
+  const body: t.Statement[] = [];
+
+  body.push(
+    t.importDeclaration(
+      [t.importSpecifier(t.identifier("createBlueprint"), t.identifier("createBlueprint"))],
+      t.stringLiteral("@jue/runtime-core")
+    )
   );
 
-  return `
-    import { createBlueprint } from "@jue/runtime-core";
+  body.push(...input.imports);
+  body.push(input.runtimeFunction);
+  body.push(...input.blueprintStatements);
 
-    ${input.runtimeImportCode}
+  body.push(
+    t.exportNamedDeclaration(
+      null,
+      [t.exportSpecifier(t.identifier("blueprint"), t.identifier("blueprint"))]
+    )
+  );
 
-    ${runtimeModuleCode}
+  body.push(
+    t.exportNamedDeclaration(
+      t.variableDeclaration("const", [
+        t.variableDeclarator(t.identifier("signalCount"), t.numericLiteral(input.signalCount))
+      ]),
+      []
+    )
+  );
 
-    ${templateDeclarations}
+  body.push(
+    t.exportNamedDeclaration(
+      t.variableDeclaration("const", [
+        t.variableDeclarator(t.identifier("signalSlots"), valueToNode(input.signalSlots))
+      ]),
+      []
+    )
+  );
 
-    ${createBlueprintDeclaration("blueprint", input.blueprint)}
-    export { blueprint };
-    export const signalCount = ${JSON.stringify(input.signalCount)};
-    export const signalSlots = ${JSON.stringify(input.signalSlots)};
-    export const initialSignalValues = ${JSON.stringify(input.initialSignalValues)};
-    export const keyedListDescriptors = [${keyedListDescriptors}];
-    export const virtualListDescriptors = [${virtualListDescriptors}];
-  `;
+  body.push(
+    t.exportNamedDeclaration(
+      t.variableDeclaration("const", [
+        t.variableDeclarator(t.identifier("initialSignalValues"), valueToNode(input.initialSignalValues))
+      ]),
+      []
+    )
+  );
+
+  body.push(
+    t.exportNamedDeclaration(
+      t.variableDeclaration("const", [
+        t.variableDeclarator(
+          t.identifier("keyedListDescriptors"),
+          t.arrayExpression(
+            input.keyedListDescriptors.map((d, i) =>
+              buildDescriptorElement(d, `keyedListTemplate${i}`)
+            )
+          )
+        )
+      ]),
+      []
+    )
+  );
+
+  body.push(
+    t.exportNamedDeclaration(
+      t.variableDeclaration("const", [
+        t.variableDeclarator(
+          t.identifier("virtualListDescriptors"),
+          t.arrayExpression(
+            input.virtualListDescriptors.map((d, i) =>
+              buildDescriptorElement(d, `virtualListTemplate${i}`)
+            )
+          )
+        )
+      ]),
+      []
+    )
+  );
+
+  return t.file(t.program(body));
 }
 
-function createRuntimeModuleCode(
-  signalSlots: Readonly<Record<string, number>>,
-  runtimeCode: string,
-  handlerNames: readonly string[]
-): string {
-  const signalNames = Object.keys(signalSlots);
-  const handlerEntries = handlerNames
-    .map(name => `${JSON.stringify(name)}: ${name}`)
-    .join(", ");
-  const runtimeBody = runtimeCode.trim();
+function collectReferencedNames(statements: t.Statement[]): Set<string> {
+  const referenced = new Set<string>();
 
-  if (signalNames.length === 0) {
-    return `
-      export function createRuntime(): {
-        handlers: Record<string, unknown>;
-      } {
-        ${runtimeBody}
-        return {
-          handlers: { ${handlerEntries} }
-        };
+  function visit(node: t.Node | null | undefined, isDeclId = false) {
+    if (!node) return;
+    if (t.isIdentifier(node) && !isDeclId) {
+      referenced.add(node.name);
+    }
+    for (const [key, child] of Object.entries(node as unknown as Record<string, unknown>)) {
+      if (
+        (t.isTSPropertySignature(node) || t.isTSMethodSignature(node)) && key === "key"
+      ) {
+        continue;
       }
-    `;
+      if (t.isMemberExpression(node) && !node.computed && key === "property") {
+        continue;
+      }
+      if (
+        (t.isObjectProperty(node) || t.isObjectMethod(node)) &&
+        !node.computed &&
+        key === "key"
+      ) {
+        continue;
+      }
+      if (Array.isArray(child)) {
+        for (const item of child) {
+          if (item && typeof item === "object" && "type" in item) {
+            visit(item as t.Node, false);
+          }
+        }
+      } else if (child && typeof child === "object" && "type" in child) {
+        const nextIsDeclId =
+          (t.isFunctionDeclaration(node) && key === "id") ||
+          (t.isVariableDeclarator(node) && key === "id") ||
+          (t.isTSTypeAliasDeclaration(node) && key === "id") ||
+          (t.isTSInterfaceDeclaration(node) && key === "id");
+        visit(child as t.Node, nextIsDeclId);
+      }
+    }
   }
 
-  const declarations = signalNames
-    .map(name => `const ${name} = __jueCreateSignalRef(${JSON.stringify(name)});`)
-    .join("\n");
-
-  return `
-    export function createRuntime(): {
-      configureSignalRuntime: {
-        (runtime: {
-          read(name: string): any;
-          write(name: string, value: any): void;
-          update(name: string, updater: (value: any) => any): void;
-        }): void;
-      };
-      handlers: Record<string, unknown>;
-    } {
-      let __jueSignalRuntime = {
-        read(name: string): any {
-          throw new Error(\`Signal runtime is not configured for \${name}.\`);
-        },
-        write(name: string, _value: any): void {
-          throw new Error(\`Signal runtime is not configured for \${name}.\`);
-        },
-        update(name: string, _updater: (value: any) => any): void {
-          throw new Error(\`Signal runtime is not configured for \${name}.\`);
-        }
-      };
-
-      function configureSignalRuntime(runtime: {
-        read(name: string): any;
-        write(name: string, value: any): void;
-        update(name: string, updater: (value: any) => any): void;
-      }): void {
-        __jueSignalRuntime = runtime;
-      }
-
-      function __jueCreateSignalRef(name: string) {
-        return {
-          get(): any {
-            return __jueSignalRuntime.read(name);
-          },
-          set(value: any): void {
-            __jueSignalRuntime.write(name, value);
-          },
-          update(updater: (value: any) => any): void {
-            __jueSignalRuntime.update(name, updater);
-          }
-        };
-      }
-
-      ${declarations}
-
-      ${runtimeBody}
-
-      return {
-        configureSignalRuntime,
-        handlers: { ${handlerEntries} }
-      };
-    }
-  `;
+  for (const statement of statements) {
+    visit(statement);
+  }
+  return referenced;
 }
+
+function buildCreateRuntimeFunction(
+  signalSlots: Readonly<Record<string, number>>,
+  runtimeStatements: t.Statement[],
+  handlerNames: readonly string[],
+  signalTypes: ReadonlyMap<string, t.TSType>
+): t.ExportNamedDeclaration {
+  const signalNames = Object.keys(signalSlots);
+  const referencedNames = collectReferencedNames(runtimeStatements);
+  const body: t.Statement[] = [];
+
+  const stringParam = (name: string) => param(name, t.tsStringKeyword());
+  const unknownParam = (name: string) => param(name, t.tsUnknownKeyword());
+  const updaterType = t.tsFunctionType(
+    null,
+    [unknownParam("value")],
+    t.tsTypeAnnotation(t.tsUnknownKeyword())
+  );
+  const signalRuntimeType = t.tsTypeLiteral([
+    t.tsMethodSignature(
+      t.identifier("read"),
+      null,
+      [stringParam("name")],
+      t.tsTypeAnnotation(t.tsUnknownKeyword())
+    ),
+    t.tsMethodSignature(
+      t.identifier("write"),
+      null,
+      [stringParam("name"), unknownParam("value")],
+      t.tsTypeAnnotation(t.tsVoidKeyword())
+    ),
+    t.tsMethodSignature(
+      t.identifier("update"),
+      null,
+      [stringParam("name"), param("updater", updaterType)],
+      t.tsTypeAnnotation(t.tsVoidKeyword())
+    )
+  ]);
+
+  if (signalNames.length > 0) {
+    const signalRuntimeId = t.identifier("__jueSignalRuntime");
+    signalRuntimeId.typeAnnotation = t.tsTypeAnnotation(signalRuntimeType);
+    body.push(
+      t.variableDeclaration("let", [
+        t.variableDeclarator(
+          signalRuntimeId,
+          t.objectExpression([
+            t.objectMethod(
+              "method",
+              t.identifier("read"),
+              [stringParam("name")],
+              t.blockStatement([
+                t.throwStatement(
+                  t.newExpression(t.identifier("Error"), [
+                    t.templateLiteral(
+                      [
+                        t.templateElement(
+                          {
+                            raw: "Signal runtime is not configured for ",
+                            cooked: "Signal runtime is not configured for "
+                          },
+                          false
+                        ),
+                        t.templateElement({ raw: ".", cooked: "." }, true)
+                      ],
+                      [t.identifier("name")]
+                    )
+                  ])
+                )
+              ])
+            ),
+            t.objectMethod(
+              "method",
+              t.identifier("write"),
+              [stringParam("name"), unknownParam("_value")],
+              t.blockStatement([
+                t.throwStatement(
+                  t.newExpression(t.identifier("Error"), [
+                    t.templateLiteral(
+                      [
+                        t.templateElement(
+                          {
+                            raw: "Signal runtime is not configured for ",
+                            cooked: "Signal runtime is not configured for "
+                          },
+                          false
+                        ),
+                        t.templateElement({ raw: ".", cooked: "." }, true)
+                      ],
+                      [t.identifier("name")]
+                    )
+                  ])
+                )
+              ])
+            ),
+            t.objectMethod(
+              "method",
+              t.identifier("update"),
+              [stringParam("name"), param("_updater", updaterType)],
+              t.blockStatement([
+                t.throwStatement(
+                  t.newExpression(t.identifier("Error"), [
+                    t.templateLiteral(
+                      [
+                        t.templateElement(
+                          {
+                            raw: "Signal runtime is not configured for ",
+                            cooked: "Signal runtime is not configured for "
+                          },
+                          false
+                        ),
+                        t.templateElement({ raw: ".", cooked: "." }, true)
+                      ],
+                      [t.identifier("name")]
+                    )
+                  ])
+                )
+              ])
+            )
+          ])
+        )
+      ])
+    );
+
+    body.push(
+      t.functionDeclaration(
+        t.identifier("configureSignalRuntime"),
+        [param("runtime", signalRuntimeType)],
+        t.blockStatement([
+          t.expressionStatement(
+            t.assignmentExpression("=", t.identifier("__jueSignalRuntime"), t.identifier("runtime"))
+          )
+        ])
+      )
+    );
+
+    const tUpdaterParamType = t.tsFunctionType(
+      null,
+      [param("value", t.tsTypeReference(t.identifier("T")))],
+      t.tsTypeAnnotation(t.tsTypeReference(t.identifier("T")))
+    );
+    const signalRefDecl = t.functionDeclaration(
+      t.identifier("__jueCreateSignalRef"),
+      [stringParam("name")],
+      t.blockStatement([
+        t.returnStatement(
+          t.objectExpression([
+            t.objectMethod(
+              "method",
+              t.identifier("get"),
+              [],
+              t.blockStatement([
+                t.returnStatement(
+                  t.tsAsExpression(
+                    t.callExpression(
+                      t.memberExpression(t.identifier("__jueSignalRuntime"), t.identifier("read")),
+                      [t.identifier("name")]
+                    ),
+                    t.tsTypeReference(t.identifier("T"))
+                  )
+                )
+              ])
+            ),
+            t.objectMethod(
+              "method",
+              t.identifier("set"),
+              [unknownParam("value")],
+              t.blockStatement([
+                t.expressionStatement(
+                  t.callExpression(
+                    t.memberExpression(t.identifier("__jueSignalRuntime"), t.identifier("write")),
+                    [
+                      t.identifier("name"),
+                      t.tsAsExpression(t.identifier("value"), t.tsUnknownKeyword())
+                    ]
+                  )
+                )
+              ])
+            ),
+            t.objectMethod(
+              "method",
+              t.identifier("update"),
+              [param("updater", tUpdaterParamType)],
+              t.blockStatement([
+                t.expressionStatement(
+                  t.callExpression(
+                    t.memberExpression(t.identifier("__jueSignalRuntime"), t.identifier("update")),
+                    [
+                      t.identifier("name"),
+                      t.tsAsExpression(t.identifier("updater"), updaterType)
+                    ]
+                  )
+                )
+              ])
+            )
+          ])
+        )
+      ])
+    );
+    const signalRefType = t.tsTypeLiteral([
+      t.tsMethodSignature(t.identifier("get"), null, [], t.tsTypeAnnotation(t.tsTypeReference(t.identifier("T")))),
+      t.tsMethodSignature(
+        t.identifier("set"),
+        null,
+        [param("value", t.tsTypeReference(t.identifier("T")))],
+        t.tsTypeAnnotation(t.tsVoidKeyword())
+      ),
+      t.tsMethodSignature(
+        t.identifier("update"),
+        null,
+        [
+          param(
+            "updater",
+            t.tsFunctionType(
+              null,
+              [param("value", t.tsTypeReference(t.identifier("T")))],
+              t.tsTypeAnnotation(t.tsTypeReference(t.identifier("T")))
+            )
+          )
+        ],
+        t.tsTypeAnnotation(t.tsVoidKeyword())
+      )
+    ]);
+    signalRefDecl.typeParameters = t.tsTypeParameterDeclaration([
+      t.tsTypeParameter(null, t.tsUnknownKeyword(), "T")
+    ]);
+    signalRefDecl.returnType = t.tsTypeAnnotation(signalRefType);
+    body.push(signalRefDecl);
+
+    for (const name of signalNames) {
+      if (!referencedNames.has(name)) continue;
+      const callExpr = t.callExpression(
+        t.identifier("__jueCreateSignalRef"),
+        [t.stringLiteral(name)]
+      );
+      const type = signalTypes.get(name);
+      if (type && type.type !== "TSUnknownKeyword") {
+        callExpr.typeParameters = t.tsTypeParameterInstantiation([type]);
+      }
+      body.push(
+        t.variableDeclaration("const", [
+          t.variableDeclarator(t.identifier(name), callExpr)
+        ])
+      );
+    }
+  }
+
+  body.push(...runtimeStatements);
+
+  const handlersObj = t.objectExpression(
+    handlerNames.map(name => t.objectProperty(t.stringLiteral(name), t.identifier(name)))
+  );
+
+  const returnProps: t.ObjectProperty[] = [t.objectProperty(t.identifier("handlers"), handlersObj)];
+  if (signalNames.length > 0) {
+    returnProps.unshift(
+      t.objectProperty(t.identifier("configureSignalRuntime"), t.identifier("configureSignalRuntime"))
+    );
+  }
+
+  body.push(t.returnStatement(t.objectExpression(returnProps)));
+
+  return t.exportNamedDeclaration(
+    t.functionDeclaration(t.identifier("createRuntime"), [], t.blockStatement(body)),
+    []
+  );
+}
+
+function buildBlueprintVariableDeclarations(
+  constName: string,
+  blueprint: SerializedBlueprint
+): t.Statement[] {
+  const callExpr = t.callExpression(t.identifier("createBlueprint"), [
+    t.objectExpression([
+      t.objectProperty(t.identifier("nodeCount"), t.numericLiteral(blueprint.nodeCount)),
+      t.objectProperty(
+        t.identifier("nodeKind"),
+        t.newExpression(t.identifier("Uint8Array"), [
+          t.arrayExpression(Array.from(blueprint.nodeKind).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("nodePrimitiveRefIndex"),
+        t.newExpression(t.identifier("Uint32Array"), [
+          t.arrayExpression(Array.from(blueprint.nodePrimitiveRefIndex).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("nodeTextRefIndex"),
+        t.newExpression(t.identifier("Uint32Array"), [
+          t.arrayExpression(Array.from(blueprint.nodeTextRefIndex).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("nodeParentIndex"),
+        t.newExpression(t.identifier("Uint32Array"), [
+          t.arrayExpression(Array.from(blueprint.nodeParentIndex).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("bindingOpcode"),
+        t.newExpression(t.identifier("Uint8Array"), [
+          t.arrayExpression(Array.from(blueprint.bindingOpcode).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("bindingNodeIndex"),
+        t.newExpression(t.identifier("Uint32Array"), [
+          t.arrayExpression(Array.from(blueprint.bindingNodeIndex).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("bindingDataIndex"),
+        t.newExpression(t.identifier("Uint32Array"), [
+          t.arrayExpression(Array.from(blueprint.bindingDataIndex).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("bindingArgU32"),
+        t.newExpression(t.identifier("Uint32Array"), [
+          t.arrayExpression(Array.from(blueprint.bindingArgU32).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("bindingArgRef"),
+        t.arrayExpression(blueprint.bindingArgRef.map(v => valueToNode(v)))
+      ),
+      t.objectProperty(
+        t.identifier("regionType"),
+        t.newExpression(t.identifier("Uint8Array"), [
+          t.arrayExpression(Array.from(blueprint.regionType).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("regionAnchorStart"),
+        t.newExpression(t.identifier("Uint32Array"), [
+          t.arrayExpression(Array.from(blueprint.regionAnchorStart).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("regionAnchorEnd"),
+        t.newExpression(t.identifier("Uint32Array"), [
+          t.arrayExpression(Array.from(blueprint.regionAnchorEnd).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("regionBranchRangeStart"),
+        t.newExpression(t.identifier("Uint32Array"), [
+          t.arrayExpression(Array.from(blueprint.regionBranchRangeStart).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("regionBranchRangeCount"),
+        t.newExpression(t.identifier("Uint32Array"), [
+          t.arrayExpression(Array.from(blueprint.regionBranchRangeCount).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("regionBranchNodeStart"),
+        t.newExpression(t.identifier("Uint32Array"), [
+          t.arrayExpression(Array.from(blueprint.regionBranchNodeStart).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("regionBranchNodeEnd"),
+        t.newExpression(t.identifier("Uint32Array"), [
+          t.arrayExpression(Array.from(blueprint.regionBranchNodeEnd).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("regionNestedBlockSlot"),
+        t.newExpression(t.identifier("Uint32Array"), [
+          t.arrayExpression(Array.from(blueprint.regionNestedBlockSlot).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("regionNestedBlueprintSlot"),
+        t.newExpression(t.identifier("Uint32Array"), [
+          t.arrayExpression(Array.from(blueprint.regionNestedBlueprintSlot).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("regionNestedMountMode"),
+        t.newExpression(t.identifier("Uint8Array"), [
+          t.arrayExpression(Array.from(blueprint.regionNestedMountMode).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("signalToBindingStart"),
+        t.newExpression(t.identifier("Uint32Array"), [
+          t.arrayExpression(Array.from(blueprint.signalToBindingStart).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("signalToBindingCount"),
+        t.newExpression(t.identifier("Uint32Array"), [
+          t.arrayExpression(Array.from(blueprint.signalToBindingCount).map(n => t.numericLiteral(n)))
+        ])
+      ),
+      t.objectProperty(
+        t.identifier("signalToBindings"),
+        t.newExpression(t.identifier("Uint32Array"), [
+          t.arrayExpression(Array.from(blueprint.signalToBindings).map(n => t.numericLiteral(n)))
+        ])
+      )
+    ])
+  ]);
+
+  return [
+    t.variableDeclaration("const", [
+      t.variableDeclarator(t.identifier(`${constName}Result`), callExpr)
+    ]),
+    t.ifStatement(
+      t.unaryExpression(
+        "!",
+        t.memberExpression(t.identifier(`${constName}Result`), t.identifier("ok"))
+      ),
+      t.blockStatement([
+        t.throwStatement(
+          t.newExpression(t.identifier("Error"), [
+            t.memberExpression(
+              t.memberExpression(t.identifier(`${constName}Result`), t.identifier("error")),
+              t.identifier("message")
+            )
+          ])
+        )
+      ])
+    ),
+    t.variableDeclaration("const", [
+      t.variableDeclarator(
+        t.identifier(constName),
+        t.memberExpression(t.identifier(`${constName}Result`), t.identifier("value"))
+      )
+    ])
+  ];
+}
+
+function param(name: string, type: t.TSType): t.Identifier {
+  const id = t.identifier(name);
+  id.typeAnnotation = t.tsTypeAnnotation(type);
+  return id;
+}
+
+function buildDescriptorElement(
+  descriptor: SerializedKeyedListDescriptor | SerializedVirtualListDescriptor,
+  templateVarName: string
+): t.ObjectExpression {
+  const props: t.ObjectProperty[] = [
+    t.objectProperty(t.identifier("regionSlot"), t.numericLiteral(descriptor.regionSlot)),
+    t.objectProperty(t.identifier("sourceSignalSlot"), t.numericLiteral(descriptor.sourceSignalSlot)),
+    t.objectProperty(t.identifier("keyPath"), valueToNode(descriptor.keyPath)),
+    t.objectProperty(
+      t.identifier("template"),
+      t.objectExpression([
+        t.objectProperty(t.identifier("blueprint"), t.identifier(templateVarName)),
+        t.objectProperty(t.identifier("signalCount"), t.numericLiteral(descriptor.template.signalCount)),
+        t.objectProperty(t.identifier("initialSignalValues"), valueToNode(descriptor.template.initialSignalValues)),
+        t.objectProperty(t.identifier("signalPaths"), valueToNode(descriptor.template.signalPaths))
+      ])
+    )
+  ];
+
+  if ("estimateSize" in descriptor) {
+    props.push(
+      t.objectProperty(t.identifier("estimateSize"), t.numericLiteral(descriptor.estimateSize)),
+      t.objectProperty(t.identifier("overscan"), t.numericLiteral(descriptor.overscan))
+    );
+  }
+
+  return t.objectExpression(props);
+}
+
+function valueToNode(value: unknown): t.Expression {
+  if (value === null) return t.nullLiteral();
+  if (value === undefined) return t.identifier("undefined");
+  if (typeof value === "boolean") return t.booleanLiteral(value);
+  if (typeof value === "number") return t.numericLiteral(value);
+  if (typeof value === "string") return t.stringLiteral(value);
+  if (Array.isArray(value)) {
+    return t.arrayExpression(value.map(valueToNode));
+  }
+  if (typeof value === "object" && value !== null) {
+    return t.objectExpression(
+      Object.entries(value).map(([k, v]) => t.objectProperty(t.stringLiteral(k), valueToNode(v)))
+    );
+  }
+  throw new TypeError(`Unsupported value: ${typeof value}`);
+}
+
+// ---------------------------------------------------------------------------
+// Runtime statement extraction (already AST-based, now returns nodes)
+// ---------------------------------------------------------------------------
 
 function buildRuntimeStatements(
   ast: t.File,
   rootSymbol: string,
   signalFactoryLocalNames: ReadonlySet<string>
 ): {
-  readonly importCode: string;
-  readonly code: string;
+  readonly imports: t.ImportDeclaration[];
+  readonly statements: t.Statement[];
   readonly handlerNames: readonly string[];
 } {
   const imports: t.ImportDeclaration[] = [];
@@ -339,6 +845,11 @@ function buildRuntimeStatements(
       continue;
     }
 
+    if (t.isTSTypeAliasDeclaration(statement) || t.isTSInterfaceDeclaration(statement)) {
+      statements.push(statement);
+      continue;
+    }
+
     if (t.isFunctionDeclaration(statement) && statement.id) {
       handlerNames.push(statement.id.name);
       statements.push(statement);
@@ -355,11 +866,6 @@ function buildRuntimeStatements(
       continue;
     }
 
-    if (t.isTSInterfaceDeclaration(statement) || t.isTSTypeAliasDeclaration(statement)) {
-      statements.push(statement);
-      continue;
-    }
-
     if (t.isVariableDeclaration(statement)) {
       const runtimeDeclarations = statement.declarations.filter(
         declaration => !isSignalFactoryDeclaration(declaration, signalFactoryLocalNames)
@@ -372,20 +878,15 @@ function buildRuntimeStatements(
     }
   }
 
-  if (statements.length === 0) {
-    return {
-      importCode: imports.length === 0 ? "" : generate(t.file(t.program(imports))).code,
-      code: "",
-      handlerNames
-    };
-  }
+  const referencedNames = collectReferencedNames(statements);
+  const filteredStatements = statements.filter(statement => {
+    if (t.isTSTypeAliasDeclaration(statement) || t.isTSInterfaceDeclaration(statement)) {
+      return referencedNames.has(statement.id.name);
+    }
+    return true;
+  });
 
-  const file = t.file(t.program(statements));
-  return {
-    importCode: imports.length === 0 ? "" : generate(t.file(t.program(imports))).code,
-    code: generate(file).code,
-    handlerNames
-  };
+  return { imports, statements: filteredStatements, handlerNames };
 }
 
 function collectSignalFactoryLocalNames(ast: t.File): ReadonlySet<string> {
@@ -420,6 +921,58 @@ function isSignalFactoryDeclaration(
 
   return signalFactoryLocalNames.has(declaration.init.callee.name);
 }
+
+function inferSignalType(
+  argument: t.Expression | t.SpreadElement | t.JSXNamespacedName | t.ArgumentPlaceholder
+): t.TSType {
+  if (t.isNumericLiteral(argument)) return t.tsNumberKeyword();
+  if (t.isStringLiteral(argument)) return t.tsStringKeyword();
+  if (t.isBooleanLiteral(argument)) return t.tsBooleanKeyword();
+  if (t.isArrayExpression(argument)) {
+    const elements = argument.elements.filter(
+      (e): e is t.Expression => e !== null && !t.isSpreadElement(e)
+    );
+    if (elements.length === 0) return t.tsArrayType(t.tsUnknownKeyword());
+    const firstType = inferSignalType(elements[0]!);
+    const allSame = elements.every(e => inferSignalType(e).type === firstType.type);
+    return allSame ? t.tsArrayType(firstType) : t.tsArrayType(t.tsUnknownKeyword());
+  }
+  if (t.isObjectExpression(argument)) {
+    return t.tsTypeReference(
+      t.identifier("Record"),
+      t.tsTypeParameterInstantiation([t.tsStringKeyword(), t.tsUnknownKeyword()])
+    );
+  }
+  return t.tsUnknownKeyword();
+}
+
+function collectSignalTypes(
+  ast: t.File,
+  signalFactoryLocalNames: ReadonlySet<string>
+): ReadonlyMap<string, t.TSType> {
+  const map = new Map<string, t.TSType>();
+  for (const statement of ast.program.body) {
+    if (!t.isVariableDeclaration(statement)) continue;
+    for (const declaration of statement.declarations) {
+      if (!isSignalFactoryDeclaration(declaration, signalFactoryLocalNames)) continue;
+      if (!t.isIdentifier(declaration.id)) continue;
+      const arg =
+        t.isCallExpression(declaration.init) && declaration.init.arguments.length > 0
+          ? declaration.init.arguments[0]
+          : null;
+      const type =
+        arg && !t.isSpreadElement(arg) && !t.isJSXNamespacedName(arg) && !t.isArgumentPlaceholder(arg)
+          ? inferSignalType(arg)
+          : t.tsUnknownKeyword();
+      map.set(declaration.id.name, type);
+    }
+  }
+  return map;
+}
+
+// ---------------------------------------------------------------------------
+// Serialization helpers (unchanged)
+// ---------------------------------------------------------------------------
 
 function serializeBlueprint(blueprint: Blueprint): SerializedBlueprint {
   return {
@@ -472,7 +1025,9 @@ function serializeKeyedListDescriptor(descriptor: CompiledKeyedListDescriptor): 
   };
 }
 
-function serializeVirtualListDescriptor(descriptor: CompiledVirtualListDescriptor): SerializedVirtualListDescriptor {
+function serializeVirtualListDescriptor(
+  descriptor: CompiledVirtualListDescriptor
+): SerializedVirtualListDescriptor {
   return {
     regionSlot: descriptor.regionSlot,
     sourceSignalSlot: descriptor.sourceSignalSlot,
@@ -481,44 +1036,4 @@ function serializeVirtualListDescriptor(descriptor: CompiledVirtualListDescripto
     overscan: descriptor.overscan,
     template: serializeTemplateDescriptor(descriptor.template)
   };
-}
-
-function createBlueprintDeclaration(
-  constName: string,
-  blueprint: SerializedBlueprint
-): string {
-  const bindingArgRef = `[${blueprint.bindingArgRef.map(value => JSON.stringify(value)).join(", ")}]`;
-  return `
-    const ${constName}Result = createBlueprint({
-      nodeCount: ${JSON.stringify(blueprint.nodeCount)},
-      nodeKind: new Uint8Array(${JSON.stringify(blueprint.nodeKind)}),
-      nodePrimitiveRefIndex: new Uint32Array(${JSON.stringify(blueprint.nodePrimitiveRefIndex)}),
-      nodeTextRefIndex: new Uint32Array(${JSON.stringify(blueprint.nodeTextRefIndex)}),
-      nodeParentIndex: new Uint32Array(${JSON.stringify(blueprint.nodeParentIndex)}),
-      bindingOpcode: new Uint8Array(${JSON.stringify(blueprint.bindingOpcode)}),
-      bindingNodeIndex: new Uint32Array(${JSON.stringify(blueprint.bindingNodeIndex)}),
-      bindingDataIndex: new Uint32Array(${JSON.stringify(blueprint.bindingDataIndex)}),
-      bindingArgU32: new Uint32Array(${JSON.stringify(blueprint.bindingArgU32)}),
-      bindingArgRef: ${bindingArgRef},
-      regionType: new Uint8Array(${JSON.stringify(blueprint.regionType)}),
-      regionAnchorStart: new Uint32Array(${JSON.stringify(blueprint.regionAnchorStart)}),
-      regionAnchorEnd: new Uint32Array(${JSON.stringify(blueprint.regionAnchorEnd)}),
-      regionBranchRangeStart: new Uint32Array(${JSON.stringify(blueprint.regionBranchRangeStart)}),
-      regionBranchRangeCount: new Uint32Array(${JSON.stringify(blueprint.regionBranchRangeCount)}),
-      regionBranchNodeStart: new Uint32Array(${JSON.stringify(blueprint.regionBranchNodeStart)}),
-      regionBranchNodeEnd: new Uint32Array(${JSON.stringify(blueprint.regionBranchNodeEnd)}),
-      regionNestedBlockSlot: new Uint32Array(${JSON.stringify(blueprint.regionNestedBlockSlot)}),
-      regionNestedBlueprintSlot: new Uint32Array(${JSON.stringify(blueprint.regionNestedBlueprintSlot)}),
-      regionNestedMountMode: new Uint8Array(${JSON.stringify(blueprint.regionNestedMountMode)}),
-      signalToBindingStart: new Uint32Array(${JSON.stringify(blueprint.signalToBindingStart)}),
-      signalToBindingCount: new Uint32Array(${JSON.stringify(blueprint.signalToBindingCount)}),
-      signalToBindings: new Uint32Array(${JSON.stringify(blueprint.signalToBindings)})
-    });
-
-    if (!${constName}Result.ok) {
-      throw new Error(${constName}Result.error.message);
-    }
-
-    const ${constName} = ${constName}Result.value;
-  `;
 }

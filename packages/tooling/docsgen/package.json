@@ -22,10 +22,12 @@
   "scripts": {
     "docsgen": "pnpm exec tsx ./src/cli.ts",
     "build": "jue-cli",
+    "test": "jue-cli",
     "typecheck": "jue-cli"
   },
   "jueCli": [
     { "phase": "build", "mode": "library", "platform": "node", "minify": false },
-    { "phase": "typecheck", "mode": "tsc" }
+    { "phase": "typecheck", "mode": "tsc" },
+    { "phase": "test", "mode": "test", "coverageConfig": "vitest.coverage-all.config.ts" }
   ]
 }

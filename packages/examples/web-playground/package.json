@@ -10,15 +10,18 @@
   "scripts": {
     "build": "jue-cli",
     "preview": "pnpm run build && pnpm exec tsx ./scripts/serve-built-example-apps.ts",
+    "test": "jue-cli",
     "typecheck": "jue-cli",
     "test:e2e": "pnpm run build && playwright test"
   },
   "devDependencies": {
+    "@jue/compiler": "workspace:*",
     "@playwright/test": "^1.55.0",
     "terser": "^5.46.1"
   },
   "jueCli": [
-    { "phase": "build", "mode": "custom", "command": "pnpm exec tsx ../../../scripts/compile-example-components.ts && pnpm exec tsx ./scripts/build-example-apps.ts" },
-    { "phase": "typecheck", "mode": "tsc" }
+    { "phase": "build", "mode": "custom", "command": "pnpm exec tsx ./scripts/compile.ts && pnpm exec tsx ./scripts/build-example-apps.ts" },
+    { "phase": "typecheck", "mode": "tsc" },
+    { "phase": "test", "mode": "test", "coverageConfig": "vitest.coverage-all.config.ts", "testFiles": ["apps/**/*.test.ts", "apps/**/*.test.tsx", "runtime/**/*.test.ts", "runtime/**/*.test.tsx"], "coverageSource": ["apps/**/*.ts", "apps/**/*.tsx", "runtime/**/*.ts", "runtime/**/*.tsx"] }
   ]
 }

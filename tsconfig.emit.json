@@ -1,7 +1,6 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@jue/shared": ["./packages/kernel/shared/dist/index.d.ts"],
       "@jue/runtime-core": ["./packages/kernel/runtime-core/dist/index.d.ts"],
@@ -10,9 +9,9 @@
       "@jue/runtime-core/host-contract": ["./packages/kernel/runtime-core/dist/host-contract.d.ts"],
       "@jue/compiler": ["./packages/kernel/compiler/dist/index.d.ts"],
       "@jue/compiler/frontend": ["./packages/kernel/compiler/dist/frontend/index.d.ts"],
-      "@jue/compiler/ir": ["./packages/kernel/compiler/dist/ir.d.ts"],
-      "@jue/compiler/lowering": ["./packages/kernel/compiler/dist/lowering.d.ts"],
-      "@jue/compiler/builder": ["./packages/kernel/compiler/dist/builder.d.ts"],
+      "@jue/compiler/ir": ["./packages/kernel/compiler/dist/block-ir.d.ts"],
+      "@jue/compiler/lowering": ["./packages/kernel/compiler/dist/block-ir.d.ts"],
+      "@jue/compiler/builder": ["./packages/kernel/compiler/dist/blueprint-builder.d.ts"],
       "@jue/jsx": ["./packages/authoring/jsx/dist/index.d.ts"],
       "@jue/primitives": ["./packages/authoring/primitives/dist/index.d.ts"],
       "@jue/authoring-check": ["./packages/authoring/authoring-check/dist/index.d.ts"],

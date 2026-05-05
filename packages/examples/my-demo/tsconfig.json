@@ -1,0 +1,32 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@jue/jsx",
+    "types": ["node"],
+    "paths": {
+      "@jue/compiler": ["../../../packages/kernel/compiler/src/index.ts"],
+      "@jue/compiler/frontend": ["../../../packages/kernel/compiler/src/frontend/index.ts"],
+      "@jue/jsx": ["../../../packages/authoring/jsx/src/index.ts"],
+      "@jue/jsx/*": ["../../../packages/authoring/jsx/src/*"],
+      "@jue/primitives": ["../../../packages/authoring/primitives/src/index.ts"],
+      "@jue/runtime-core": ["../../../packages/kernel/runtime-core/src/index.ts"],
+      "@jue/shared": ["../../../packages/kernel/shared/src/index.ts"],
+      "@jue/web": ["../../../packages/host/web/src/index.ts"]
+    },
+    "noEmit": true
+  },
+  "include": [
+    "../../../packages/authoring/jsx/src/**/*.ts",
+    "../../../packages/authoring/primitives/src/**/*.ts",
+    "../../../packages/kernel/runtime-core/src/**/*.ts",
+    "../../../packages/kernel/shared/src/**/*.ts",
+    "../../../packages/host/web/src/**/*.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "browser/src/**/*.ts",
+    "vite.config.ts"
+  ]
+}
